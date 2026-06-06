@@ -1,4 +1,8 @@
-def main():
+"""Main module"""
+
+
+def main() -> None:
+    """Main function"""
     print("Hello from flash!")
 
 
