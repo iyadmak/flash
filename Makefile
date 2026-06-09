@@ -5,8 +5,17 @@
 run:
 	docker run -p 8000:8000 --env-file .env flash:dev
 
-build:
-	docker build --target dev -t flash:dev .
+up:
+	docker compose up -d
+
+build-dev:
+	docker compose up --build
+
+build-prod:
+	docker compose -f docker-compose.yaml -f docker-compose.prod.yaml up --build
+
+down:
+	docker compose down
 
 # Run the test suite
 test:

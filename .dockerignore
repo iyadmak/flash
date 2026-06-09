@@ -11,3 +11,5 @@ tests
 .pre-commit-config.yaml
 Dockerfile
 .dockerignore
+docs
+docker-compose*.yaml
