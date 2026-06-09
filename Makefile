@@ -3,7 +3,10 @@
 
 # Run the dev server, watching src/ and .env from anywhere
 run:
-	uv run uvicorn flash.main:app --reload --reload-dir src --reload-include .env
+	docker run -p 8000:8000 --env-file .env flash:dev
+
+build:
+	docker build --target dev -t flash:dev .
 
 # Run the test suite
 test:
