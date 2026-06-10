@@ -3,7 +3,7 @@
 import logging
 
 import structlog
-from flash.config import settings
+from flash.core.config import settings
 
 
 def configure_logging() -> None:

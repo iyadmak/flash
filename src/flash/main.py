@@ -6,7 +6,7 @@ import structlog
 
 from fastapi import FastAPI
 from flash.api.routes import health, item
-from flash.config import settings
+from flash.core.config import settings
 from flash.core.log_config import configure_logging
 
 
