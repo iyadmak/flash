@@ -5,8 +5,11 @@
 run:
 	docker run -p 8000:8000 --env-file .env flash:dev
 
-up:
+up-dev:
 	docker compose up -d
+
+up-prod:
+	docker compose -f docker-compose.yaml -f docker-compose.prod.yaml up -d
 
 build-dev:
 	docker compose up --build

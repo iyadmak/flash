@@ -4,7 +4,4 @@ services:
       target: dev
     volumes: 
       - ./src:/app/src
-    command: ["uvicorn", "flash.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload", "--reload-dir", "src", "--reload-include", ".env"]
-
-    environment:
-      - DEBUG=True
+    command: ["uvicorn", "flash.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload", "--reload-dir", "src",]
