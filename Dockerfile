@@ -10,11 +10,11 @@ WORKDIR /app
 # ---- stage 2: dev ----
 FROM base AS dev
 
-COPY pyproject.toml uv.lock ./
+COPY pyproject.toml uv.lock README.md ./
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-install-project
 
-COPY . .
+COPY src ./src
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen
 
@@ -27,11 +27,11 @@ CMD ["uv", "run", "uvicorn", "flash.main:app", "--host", "0.0.0.0", "--port", "8
 # ---- stage 3: prod ----
 FROM base AS prod
 
-COPY pyproject.toml uv.lock ./
+COPY pyproject.toml uv.lock README.md ./
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-install-project --no-dev
 
-COPY . .
+COPY src ./src
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-dev
 
