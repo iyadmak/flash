@@ -13,7 +13,7 @@ class Settings(BaseSettings):
     app_name: str = "Flash"
     debug: bool = False
     log_level: str = "INFO"
-    database_url: str   # type: ignore[call-arg]
+    database_url: str
     # secret_key: str
 
 

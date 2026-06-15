@@ -1,0 +1,32 @@
+{
+    // Use the tool versions installed in the project venv, so the editor runs
+    // the exact same ruff/mypy as `uv run ...` in the Makefile / pre-commit.
+    "ruff.importStrategy": "fromEnvironment",
+    "mypy-type-checker.importStrategy": "fromEnvironment",
+    // mypy is the type checker: check the whole workspace using the strict
+    // config from pyproject.toml ([tool.mypy]), matching `uv run mypy .`.
+    "mypy-type-checker.reportingScope": "workspace",
+    "mypy-type-checker.preferDaemon": true,
+    // Turn off Cursor's built-in type checker (cursorpyright) so mypy is the
+    // single source of truth (otherwise you'd get a second, different set of type
+    // errors). Note: Cursor uses the `cursorpyright.analysis.*` namespace, NOT
+    // `python.analysis.*`.
+    "cursorpyright.analysis.typeCheckingMode": "off",
+    // cursorpyright doesn't read mypy's `exclude = "^alembic/"`, so mirror it here.
+    // `ignore` suppresses all diagnostics for these paths (including the unresolved
+    // import / undefined errors that "off" mode still reports).
+    "cursorpyright.analysis.ignore": [
+        "**/alembic/**"
+    ],
+    // Pylint is NOT one of this project's checkers (we use ruff + mypy), and it
+    // produces false positives like "alembic.context has no 'config' member".
+    // Disable it so the editor only reports what the checkers report.
+    "pylint.enabled": false,
+    "editor.formatOnSave": true,
+    "[python]": {
+        "editor.defaultFormatter": "charliermarsh.ruff",
+        "editor.codeActionsOnSave": {
+            "source.fixAll.ruff": "explicit"
+        }
+    }
+}
