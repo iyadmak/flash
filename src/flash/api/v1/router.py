@@ -1,8 +1,9 @@
 """API v1 router"""
 
 from fastapi import APIRouter
-from flash.api.v1.routes import item
+from flash.api.v1.routes import item_routes, user_routes
 
 router = APIRouter(prefix="/v1")
 
-router.include_router(item.router)
+router.include_router(item_routes.router)
+router.include_router(user_routes.router)

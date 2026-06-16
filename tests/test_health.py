@@ -1,5 +1,3 @@
-"""Health Tests"""
-
 from fastapi.testclient import TestClient
 
 

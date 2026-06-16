@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import async_engine_from_config
 from alembic import context
 from flash.core.config import get_settings
 from flash.core.db import Base
-import flash.models.item  # noqa: F401 (needed for model registration)
+import flash.models  # noqa: F401 (needed for model registration)
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.

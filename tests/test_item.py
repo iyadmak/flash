@@ -3,7 +3,7 @@
 # from fastapi.testclient import TestClient
 # from flash.api.deps import get_item_service
 # from flash.main import app
-# from flash.schemas.item import Item
+# from flash.schemas.item_schema import Item
 
 
 # class FakeItemService:

@@ -14,10 +14,8 @@ class Settings(BaseSettings):
     debug: bool = False
     log_level: str = "INFO"
     database_url: str
-    # secret_key: str
 
 
 @lru_cache
 def get_settings() -> Settings:
-    """Get Settings"""
     return Settings()
