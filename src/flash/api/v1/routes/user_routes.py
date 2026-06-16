@@ -1,4 +1,4 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, status
 
 from flash.api.deps import UserServiceDep, DBSessionDep
 from flash.schemas.user_schema import UserCreate, UserUpdate, UserRead
@@ -14,7 +14,7 @@ async def get(
     return UserRead.model_validate(user)
 
 
-@router.post("/")
+@router.post("/", status_code=status.HTTP_201_CREATED)
 async def create_user(
     data: UserCreate, session: DBSessionDep, user_service: UserServiceDep
 ) -> UserRead:
@@ -30,7 +30,7 @@ async def update(
     return UserRead.model_validate(user)
 
 
-@router.delete("/{user_id}")
+@router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete(
     user_id: int, session: DBSessionDep, user_service: UserServiceDep
 ) -> None:

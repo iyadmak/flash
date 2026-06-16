@@ -41,6 +41,14 @@ class UserNotFound(AppError):
     detail = "The requested user does not exist."
 
 
+class RestaurantNotFound(AppError):
+    """Restaurant not found exception."""
+
+    status_code = 404
+    error_code = "restaurant_not_found"
+    detail = "The requested restaurant does not exist."
+
+
 def register_exception_handlers(app: FastAPI) -> None:
     """Register all exception handlers on the app. Called once from main."""
 
