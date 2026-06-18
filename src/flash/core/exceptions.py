@@ -49,6 +49,14 @@ class RestaurantNotFound(AppError):
     detail = "The requested restaurant does not exist."
 
 
+class OrderNotFound(AppError):
+    """Order not found exception."""
+
+    status_code = 404
+    error_code = "order_not_found"
+    detail = "The requested order does not exist."
+
+
 def register_exception_handlers(app: FastAPI) -> None:
     """Register all exception handlers on the app. Called once from main."""
 

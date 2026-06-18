@@ -1,4 +1,7 @@
 {
+    // Point the Python extension at the uv-managed venv so mypy/ruff resolve from
+    // the same environment as `uv run ...` in the Makefile / pre-commit.
+    "python.defaultInterpreterPath": "${workspaceFolder}/.venv/bin/python",
     // Use the tool versions installed in the project venv, so the editor runs
     // the exact same ruff/mypy as `uv run ...` in the Makefile / pre-commit.
     "ruff.importStrategy": "fromEnvironment",
