@@ -8,8 +8,8 @@ class OrderModel(Base):
     __tablename__ = "orders"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
-    restaurant_id: Mapped[int] = mapped_column(ForeignKey("restaurants.id"))
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    restaurant_id: Mapped[int] = mapped_column(ForeignKey("restaurants.id"), index=True)
     total_price: Mapped[float]
     status: Mapped[str]
     created_at: Mapped[datetime] = mapped_column(
