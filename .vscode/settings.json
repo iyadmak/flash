@@ -9,7 +9,7 @@
     // mypy is the type checker: check the whole workspace using the strict
     // config from pyproject.toml ([tool.mypy]), matching `uv run mypy .`.
     "mypy-type-checker.reportingScope": "workspace",
-    "mypy-type-checker.preferDaemon": true,
+    "mypy-type-checker.preferDaemon": false,
     // Turn off Cursor's built-in type checker (cursorpyright) so mypy is the
     // single source of truth (otherwise you'd get a second, different set of type
     // errors). Note: Cursor uses the `cursorpyright.analysis.*` namespace, NOT

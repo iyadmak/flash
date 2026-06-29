@@ -7,7 +7,6 @@ from datetime import datetime
 class OrderModel(Base):
     __tablename__ = "orders"
 
-    id: Mapped[int] = mapped_column(primary_key=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
     restaurant_id: Mapped[int] = mapped_column(ForeignKey("restaurants.id"), index=True)
     total_price: Mapped[float]

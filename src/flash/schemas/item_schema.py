@@ -4,6 +4,7 @@ from pydantic import BaseModel, ConfigDict
 class ItemCreate(BaseModel):
     name: str
     price: float
+    order_id: int
 
 
 class ItemUpdate(BaseModel):
@@ -17,3 +18,4 @@ class ItemRead(BaseModel):
     id: int
     name: str
     price: float
+    order_id: int
