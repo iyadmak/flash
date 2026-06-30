@@ -1,6 +1,4 @@
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
-
+from flash.repositories.restaurant_repository import RestaurantRepository
 from flash.core.exceptions import RestaurantNotFound
 from flash.schemas.restaurant_schema import (
     RestaurantCreate,
@@ -10,42 +8,41 @@ from flash.models.restaurant_model import RestaurantModel
 
 
 class RestaurantService:
-    async def list(self, session: AsyncSession) -> list[RestaurantModel]:
-        restaurants = await session.execute(select(RestaurantModel))
-        return list(restaurants.scalars().all())
+    def __init__(self, repo: RestaurantRepository) -> None:
+        self._repo = repo
 
-    async def get(self, session: AsyncSession, restaurant_id: int) -> RestaurantModel:
-        restaurant = await session.get(RestaurantModel, restaurant_id)
-        if not restaurant:
+    async def list(self, limit: int, offset: int) -> list[RestaurantModel]:
+        return list(await self._repo.list(limit, offset))
+
+    async def get(self, restaurant_id: int) -> RestaurantModel:
+        restaurant = await self._repo.get(restaurant_id)
+        if restaurant is None:
             raise RestaurantNotFound()
         return restaurant
 
-    async def create(
-        self, session: AsyncSession, data: RestaurantCreate
-    ) -> RestaurantModel:
-        restaurant = RestaurantModel(**data.model_dump())
-        session.add(restaurant)
-        await session.commit()
-        await session.refresh(restaurant)
+    async def create(self, data: RestaurantCreate) -> RestaurantModel:
+        restaurant = RestaurantModel(
+            name=data.name,
+            address=data.address,
+            phone=data.phone,
+            email=data.email,
+        )
+        restaurant = await self._repo.create(restaurant)
+        await self._repo.commit()
         return restaurant
 
     async def update(
-        self, session: AsyncSession, restaurant_id: int, data: RestaurantUpdate
+        self, restaurant_id: int, data: RestaurantUpdate
     ) -> RestaurantModel:
-        restaurant = await self.get(session, restaurant_id)
-        if data.name:
-            restaurant.name = data.name
-        if data.address:
-            restaurant.address = data.address
-        if data.phone:
-            restaurant.phone = data.phone
-        if data.email:
-            restaurant.email = data.email
-        await session.commit()
-        await session.refresh(restaurant)
+        restaurant = await self.get(restaurant_id)
+        restaurant.name = data.name or restaurant.name
+        restaurant.address = data.address or restaurant.address
+        restaurant.phone = data.phone or restaurant.phone
+        restaurant.email = data.email or restaurant.email
+        await self._repo.commit()
         return restaurant
 
-    async def delete(self, session: AsyncSession, restaurant_id: int) -> None:
-        restaurant = await self.get(session, restaurant_id)
-        await session.delete(restaurant)
-        await session.commit()
+    async def delete(self, restaurant_id: int) -> None:
+        restaurant = await self.get(restaurant_id)
+        await self._repo.delete(restaurant)
+        await self._repo.commit()
