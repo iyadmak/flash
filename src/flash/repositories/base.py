@@ -30,3 +30,6 @@ class BaseRepository[ModelT: Base]:
 
     async def commit(self) -> None:
         await self._session.commit()
+
+    async def refresh(self, instance: ModelT) -> None:
+        await self._session.refresh(instance)

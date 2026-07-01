@@ -32,6 +32,7 @@ class UserService:
         if data.password:
             user.password = hash_password(data.password)
         await self._repo.commit()
+        await self._repo.refresh(user)
         return user
 
     async def delete(self, user_id: int) -> None:

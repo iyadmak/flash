@@ -9,7 +9,7 @@ router = APIRouter(prefix="/items", tags=["items"])
 async def list_items(
     service: ItemServiceDep,
     limit: int = Query(50, le=100),
-    offset: int = Query(ge=0),
+    offset: int = Query(0, ge=0),
 ) -> list[ItemRead]:
     items = await service.list(limit, offset)
     return [ItemRead.model_validate(item) for item in items]

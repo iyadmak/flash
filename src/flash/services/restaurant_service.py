@@ -22,6 +22,7 @@ class RestaurantService:
 
     async def create(self, data: RestaurantCreate) -> RestaurantModel:
         restaurant = RestaurantModel(
+            owner_id=data.owner_id,
             name=data.name,
             address=data.address,
             phone=data.phone,

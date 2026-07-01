@@ -9,7 +9,7 @@ router = APIRouter(prefix="/orders", tags=["orders"])
 async def list_orders(
     order_service: OrderServiceDep,
     limit: int = Query(50, le=100),
-    offset: int = Query(ge=0),
+    offset: int = Query(0, ge=0),
 ) -> list[OrderRead]:
     orders = await order_service.list(limit, offset)
     return [OrderRead.model_validate(order) for order in orders]

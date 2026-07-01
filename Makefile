@@ -35,7 +35,7 @@ fix:
 
 # Type-check
 type:
-	uv run mypy src
+	uv run mypy .
 
 # Run everything (what CI / pre-push would do)
 check: lint type test
