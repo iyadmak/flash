@@ -33,7 +33,7 @@ def db_url(postgres_container: PostgresContainer) -> str:
     return cast(str, postgres_container.get_connection_url())
 
 
-@pytest.fixture(scope="session", autouse=True)
+@pytest.fixture(scope="session")
 def run_migrations(db_url: str) -> None:
     os.environ["DATABASE_URL"] = db_url
     get_settings.cache_clear()
@@ -41,7 +41,7 @@ def run_migrations(db_url: str) -> None:
 
 
 @pytest_asyncio.fixture
-async def async_engine(db_url: str) -> AsyncIterator[AsyncEngine]:
+async def async_engine(db_url: str, run_migrations: None) -> AsyncIterator[AsyncEngine]:
     engine = create_async_engine(db_url)
     yield engine
     await engine.dispose()

@@ -1,8 +1,11 @@
+import structlog
+from datetime import datetime
 from flash.models.order_model import OrderModel
 from flash.schemas.order_schema import OrderCreate, OrderUpdate
 from flash.core.exceptions import OrderNotFound
 from flash.repositories.order_repository import OrderRepository
-from datetime import datetime
+
+logger = structlog.get_logger()
 
 
 class OrderService:
@@ -31,10 +34,18 @@ class OrderService:
 
     async def update(self, order_id: int, data: OrderUpdate) -> OrderModel:
         order = await self.get(order_id)
+        old_status = order.status
         order.total_price = data.total_price or order.total_price
         order.status = data.status or order.status
         order.updated_at = datetime.now()
         await self._repo.commit()
+        if order.status != old_status:
+            logger.info(
+                "order_status_changed",
+                order_id=order.id,
+                old_status=old_status,
+                new_status=order.status,
+            )
         return order
 
     async def delete(self, order_id: int) -> None:
