@@ -35,6 +35,7 @@
     // produces false positives like "alembic.context has no 'config' member".
     // Disable it so the editor only reports what the checkers report.
     "pylint.enabled": false,
+    "editor.inlineSuggest.enabled": true,
     "editor.formatOnSave": true,
     "[python]": {
         "editor.defaultFormatter": "charliermarsh.ruff",
