@@ -38,7 +38,7 @@ services:
       DB_PASSWORD: ${DATABASE_PASSWORD}
       DB_NAME: ${DATABASE_DB}
       LISTEN_PORT: "6432"
-      AUTH_TYPE: trust
+      AUTH_TYPE: scram-sha-256
       POOL_MODE: transaction
       MAX_CLIENT_CONN: "100"
       DEFAULT_POOL_SIZE: "5"
