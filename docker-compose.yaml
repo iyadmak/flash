@@ -9,7 +9,9 @@ services:
     depends_on:
       db:
         condition: service_healthy
-  
+      pgbouncer:
+        condition: service_started
+
   db:
     image: postgres:17
     environment:
@@ -22,10 +24,31 @@ services:
       - postgres_data:/var/lib/postgresql/data
 
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DATABASE_USER}"]
+      test: [ "CMD-SHELL", "pg_isready -U ${DATABASE_USER}" ]
       interval: 5s
       timeout: 3s
       retries: 5
+
+  pgbouncer:
+    image: edoburu/pgbouncer:v1.25.1-p0
+    environment:
+      DB_HOST: db
+      DB_PORT: "5432"
+      DB_USER: ${DATABASE_USER}
+      DB_PASSWORD: ${DATABASE_PASSWORD}
+      DB_NAME: ${DATABASE_DB}
+      LISTEN_PORT: "6432"
+      AUTH_TYPE: trust
+      POOL_MODE: transaction
+      MAX_CLIENT_CONN: "100"
+      DEFAULT_POOL_SIZE: "5"
+      MAX_PREPARED_STATEMENTS: "200"
+      ADMIN_USERS: ${DATABASE_USER}
+    ports:
+      - "6432:6432"
+    depends_on:
+      db:
+        condition: service_healthy
 
 volumes:
   postgres_data:

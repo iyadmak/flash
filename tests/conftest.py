@@ -35,7 +35,7 @@ def db_url(postgres_container: PostgresContainer) -> str:
 
 @pytest.fixture(scope="session")
 def run_migrations(db_url: str) -> None:
-    os.environ["DATABASE_URL"] = db_url
+    os.environ["REAL_DATABASE_URL"] = db_url
     get_settings.cache_clear()
     command.upgrade(Config("alembic.ini"), "head")
 

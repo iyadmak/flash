@@ -15,7 +15,7 @@ import flash.models  # noqa: F401 (needed for model registration)
 config = context.config
 
 # Override sqlalchemy.url with value from application settings
-config.set_main_option("sqlalchemy.url", get_settings().database_url)
+config.set_main_option("sqlalchemy.url", get_settings().real_database_url)
 
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.

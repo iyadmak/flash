@@ -19,6 +19,7 @@ class Settings(BaseSettings):
     db_pool_timeout: int = 30
     db_pool_recycle: int = 1800
     db_pool_pre_ping: bool = True
+    real_database_url: str
 
 
 @lru_cache
