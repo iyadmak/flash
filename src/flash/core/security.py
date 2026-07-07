@@ -1,4 +1,5 @@
 import jwt
+from typing import cast
 from argon2 import PasswordHasher
 from argon2.exceptions import VerifyMismatchError
 from datetime import datetime, timedelta, timezone
@@ -17,6 +18,14 @@ def create_access_token(subject: str) -> str:
         settings.secret_key,
         algorithm=settings.jwt_algorithm,
     )
+
+
+def decode_access_token(token: str) -> str:
+    settings = get_settings()
+    payload = jwt.decode(
+        token, settings.secret_key, algorithms=[settings.jwt_algorithm]
+    )
+    return cast(str, payload["sub"])
 
 
 def hash_password(password: str) -> str:

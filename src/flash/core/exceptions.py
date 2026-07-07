@@ -61,6 +61,18 @@ class InvalidCredentials(AppError):
     detail = "Incorrect email or password"
 
 
+class InvalidToken(AppError):
+    status_code = 401
+    error_code = "invalid_token"
+    detail = "could not validate credentials."
+
+
+class Forbidden(AppError):
+    status_code = 403
+    error_code = "forbidden"
+    detail = "you don't have permission to perform this action."
+
+
 def register_exception_handlers(app: FastAPI) -> None:
     """Register all exception handlers on the app. Called once from main."""
 

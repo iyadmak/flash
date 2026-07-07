@@ -3,6 +3,7 @@
 from typing import Annotated
 from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
+from fastapi.security import OAuth2PasswordBearer
 
 from flash.core.config import Settings, get_settings
 from flash.services import (
@@ -19,6 +20,7 @@ from flash.repositories import (
     RestaurantRepository,
     UserRepository,
 )
+from flash.models.user_model import UserModel
 
 # ------------------- General dependencies -------------------
 SettingsDep = Annotated[Settings, Depends(get_settings)]
@@ -74,3 +76,16 @@ ItemServiceDep = Annotated[ItemService, Depends(get_item_service)]
 UserServiceDep = Annotated[UserService, Depends(get_user_service)]
 RestaurantServiceDep = Annotated[RestaurantService, Depends(get_restaurant_service)]
 OrderServiceDep = Annotated[OrderService, Depends(get_order_service)]
+
+# ------------------- auth dependencies -------------------
+
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
+
+
+async def get_current_user(
+    token: Annotated[str, Depends(oauth2_scheme)], auth_service: AuthServiceDep
+) -> UserModel:
+    return await auth_service.get_current_user(token)
+
+
+CurrentUserDep = Annotated[UserModel, Depends(get_current_user)]

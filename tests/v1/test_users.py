@@ -25,3 +25,34 @@ async def test_get_returns_inactive_user(
     resp = await client.get(f"/api/v1/users/{inactive.id}")
     assert resp.status_code == 200
     assert resp.json()["is_active"] is False
+
+
+class TestUpdate:
+    async def test_updates_own_username(
+        self, client: AsyncClient, user: UserModel, auth_headers: dict[str, str]
+    ) -> None:
+        resp = await client.put(
+            f"/api/v1/users/{user.id}", json={"username": "new"}, headers=auth_headers
+        )
+        assert resp.status_code == 200
+
+    async def test_requires_authentication(
+        self, client: AsyncClient, user: UserModel
+    ) -> None:
+        resp = await client.put(f"/api/v1/users/{user.id}", json={"username": "new"})
+        assert resp.status_code == 401
+
+    async def test_cannot_update_another_user(
+        self,
+        client: AsyncClient,
+        user: UserModel,
+        make_user: UserFactory,
+        auth_headers: dict[str, str],
+    ) -> None:
+        other = await make_user()
+        resp = await client.put(
+            f"/api/v1/users/{other.id}",
+            json={"username": "hijacked"},
+            headers=auth_headers,
+        )
+        assert resp.status_code == 403

@@ -14,7 +14,7 @@ from collections.abc import Awaitable, Callable
 from typing import Any
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from flash.core.security import hash_password
+from flash.core.security import hash_password, create_access_token
 from flash.models import UserModel, RestaurantModel, OrderModel, ItemModel
 
 # ------------------ Instance Factories ------------------
@@ -117,6 +117,12 @@ def make_item(async_session: AsyncSession, make_order: OrderFactory) -> ItemFact
 
 
 # ------------------ Create instances ------------------
+@pytest_asyncio.fixture
+async def auth_headers(user: UserModel) -> dict[str, str]:
+    token = create_access_token(subject=str(user.id))
+    return {"Authorization": f"Bearer {token}"}
+
+
 @pytest_asyncio.fixture
 async def user(make_user: UserFactory) -> UserModel:
     return await make_user()
