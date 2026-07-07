@@ -55,6 +55,12 @@ class EmailAlreadyRegistered(AppError):
     detail = "An account with this email already exists."
 
 
+class InvalidCredentials(AppError):
+    status_code = 401
+    error_code = "invalid_credentials"
+    detail = "Incorrect email or password"
+
+
 def register_exception_handlers(app: FastAPI) -> None:
     """Register all exception handlers on the app. Called once from main."""
 

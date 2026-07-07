@@ -1,5 +1,6 @@
 from httpx import AsyncClient
 from flash.models.user_model import UserModel
+from tests.v1.conftest import UserFactory
 
 BASE = "/api/v1/auth"
 
@@ -42,3 +43,35 @@ class TestRegister:
             },
         )
         assert response.status_code == 422
+
+
+class TestLogin:
+    async def test_returns_access_token_for_correct_credentials(
+        self, client: AsyncClient, make_user: UserFactory
+    ) -> None:
+        user = await make_user(password="correct-password")
+        response = await client.post(
+            f"{BASE}/login",
+            data={"username": user.email, "password": "correct-password"},
+        )
+        assert response.status_code == 200
+        body = response.json()
+        assert "access_token" in body
+        assert body["token_type"] == "bearer"
+
+    async def test_wrong_password_returns_401(
+        self, client: AsyncClient, make_user: UserFactory
+    ) -> None:
+        user = await make_user(password="correct-password")
+        response = await client.post(
+            f"{BASE}/login",
+            data={"username": user.email, "password": "wrong-password"},
+        )
+        assert response.status_code == 401
+
+    async def test_nonexistent_email_returns_401(self, client: AsyncClient) -> None:
+        response = await client.post(
+            f"{BASE}/login",
+            data={"username": "nobody@example.com", "password": "whatever123"},
+        )
+        assert response.status_code == 401

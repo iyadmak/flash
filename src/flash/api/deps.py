@@ -5,7 +5,13 @@ from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from flash.core.config import Settings, get_settings
-from flash.services import UserService, RestaurantService, OrderService, ItemService
+from flash.services import (
+    UserService,
+    RestaurantService,
+    OrderService,
+    ItemService,
+    AuthService,
+)
 from flash.core.db import get_async_session
 from flash.repositories import (
     ItemRepository,
@@ -43,6 +49,10 @@ UserRepoDep = Annotated[UserRepository, Depends(get_user_repository)]
 
 
 # ------------------- Service dependencies -------------------
+def get_auth_service(repo: UserRepoDep) -> AuthService:
+    return AuthService(repo)
+
+
 def get_item_service(repo: ItemRepoDep) -> ItemService:
     return ItemService(repo)
 
@@ -59,6 +69,7 @@ def get_order_service(repo: OrderRepoDep) -> OrderService:
     return OrderService(repo)
 
 
+AuthServiceDep = Annotated[AuthService, Depends(get_auth_service)]
 ItemServiceDep = Annotated[ItemService, Depends(get_item_service)]
 UserServiceDep = Annotated[UserService, Depends(get_user_service)]
 RestaurantServiceDep = Annotated[RestaurantService, Depends(get_restaurant_service)]
