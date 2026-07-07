@@ -1,6 +1,7 @@
 import structlog
 from typing import Protocol
-from flash.core.exceptions import UserNotFound
+from sqlalchemy.exc import IntegrityError
+from flash.core.exceptions import UserNotFound, EmailAlreadyRegistered
 from flash.core.security import hash_password
 from flash.models.user_model import UserModel
 from flash.schemas.user_schema import UserCreate, UserUpdate
@@ -32,7 +33,11 @@ class UserService:
             email=data.email,
             password=hash_password(data.password),
         )
-        user = await self._repo.create(user)
+        try:
+            user = await self._repo.create(user)
+        except IntegrityError:
+            raise EmailAlreadyRegistered() from None
+
         await self._repo.commit()
         logger.info("user_created", user_id=user.id, username=user.username)
         return user

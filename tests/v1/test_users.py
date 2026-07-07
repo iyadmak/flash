@@ -18,14 +18,6 @@ async def test_create_and_get_user(async_session: AsyncSession) -> None:
     assert fetched.email == "test@example.com"
 
 
-async def test_create_user_endpoint(client: AsyncClient) -> None:
-    response = await client.post(
-        "/api/v1/users/",
-        json={"email": "a@b.com", "username": "iyad", "password": "password"},
-    )
-    assert response.status_code == 201
-
-
 async def test_get_returns_inactive_user(
     client: AsyncClient, make_user: UserFactory
 ) -> None:

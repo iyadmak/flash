@@ -26,35 +26,33 @@ class AppError(Exception):
 
 
 class ItemNotFound(AppError):
-    """Item not found exception."""
-
     status_code = 404
     error_code = "item_not_found"
     detail = "The requested item does not exist."
 
 
 class UserNotFound(AppError):
-    """User not found exception."""
-
     status_code = 404
     error_code = "user_not_found"
     detail = "The requested user does not exist."
 
 
 class RestaurantNotFound(AppError):
-    """Restaurant not found exception."""
-
     status_code = 404
     error_code = "restaurant_not_found"
     detail = "The requested restaurant does not exist."
 
 
 class OrderNotFound(AppError):
-    """Order not found exception."""
-
     status_code = 404
     error_code = "order_not_found"
     detail = "The requested order does not exist."
+
+
+class EmailAlreadyRegistered(AppError):
+    status_code = 409
+    error_code = "email_already_registered"
+    detail = "An account with this email already exists."
 
 
 def register_exception_handlers(app: FastAPI) -> None:

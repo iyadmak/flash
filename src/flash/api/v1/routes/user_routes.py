@@ -1,7 +1,7 @@
 from fastapi import APIRouter, status
 
 from flash.api.deps import UserServiceDep
-from flash.schemas.user_schema import UserCreate, UserUpdate, UserRead
+from flash.schemas.user_schema import UserUpdate, UserRead
 
 router = APIRouter(prefix="/users", tags=["users"])
 
@@ -9,12 +9,6 @@ router = APIRouter(prefix="/users", tags=["users"])
 @router.get("/{user_id}")
 async def get(user_service: UserServiceDep, user_id: int) -> UserRead:
     user = await user_service.get(user_id)
-    return UserRead.model_validate(user)
-
-
-@router.post("/", status_code=status.HTTP_201_CREATED)
-async def create_user(user_service: UserServiceDep, data: UserCreate) -> UserRead:
-    user = await user_service.create(data)
     return UserRead.model_validate(user)
 
 
