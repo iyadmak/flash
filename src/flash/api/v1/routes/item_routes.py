@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, Query, status
-from flash.schemas.item_schema import ItemRead, ItemCreate, ItemUpdate
+from flash.schemas.item_schema import ItemRead, ItemCreate, ItemUpdate, ItemPage
 from flash.api.deps import ItemServiceDep, get_current_user
 
 router = APIRouter(
@@ -11,10 +11,13 @@ router = APIRouter(
 async def list_items(
     service: ItemServiceDep,
     limit: int = Query(50, le=100),
-    offset: int = Query(0, ge=0),
-) -> list[ItemRead]:
-    items = await service.list(limit, offset)
-    return [ItemRead.model_validate(item) for item in items]
+    cursor: str | None = Query(None),
+) -> ItemPage:
+    items, next_cursor = await service.list_with_cursor(limit, cursor)
+    return ItemPage(
+        items=[ItemRead.model_validate(item) for item in items],
+        next_cursor=next_cursor,
+    )
 
 
 @router.get("/{item_id}")

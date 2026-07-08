@@ -4,6 +4,7 @@ from httpx import AsyncClient
 
 from flash.models.item_model import ItemModel
 from flash.models.order_model import OrderModel
+from .conftest import ItemFactory
 
 BASE = "/api/v1/items"
 
@@ -14,15 +15,44 @@ class TestListItems:
     ) -> None:
         resp = await client.get(f"{BASE}/", headers=auth_headers)
         assert resp.status_code == 200
-        assert resp.json() == []
+        assert resp.json() == {"items": [], "next_cursor": None}
 
     async def test_returns_existing_items(
         self, client: AsyncClient, item: ItemModel, auth_headers: dict[str, str]
     ) -> None:
         resp = await client.get(f"{BASE}/", headers=auth_headers)
         assert resp.status_code == 200
-        ids = [i["id"] for i in resp.json()]
+        ids = [i["id"] for i in resp.json()["items"]]
         assert item.id in ids
+
+    async def test_paginates_with_cursor(
+        self, client: AsyncClient, make_item: ItemFactory, auth_headers: dict[str, str]
+    ) -> None:
+        items = [await make_item() for _ in range(5)]
+        ids = sorted(i.id for i in items)
+
+        page1 = await client.get(f"{BASE}/", params={"limit": 2}, headers=auth_headers)
+        data1 = page1.json()
+        assert [i["id"] for i in data1["items"]] == ids[:2]
+        assert data1["next_cursor"] is not None
+
+        page2 = await client.get(
+            f"{BASE}/",
+            params={"limit": 2, "cursor": data1["next_cursor"]},
+            headers=auth_headers,
+        )
+        data2 = page2.json()
+        assert [i["id"] for i in data2["items"]] == ids[2:4]
+        assert data2["next_cursor"] is not None
+
+        page3 = await client.get(
+            f"{BASE}/",
+            params={"limit": 2, "cursor": data2["next_cursor"]},
+            headers=auth_headers,
+        )
+        data3 = page3.json()
+        assert [i["id"] for i in data3["items"]] == ids[4:5]
+        assert data3["next_cursor"] is None
 
 
 class TestGetItem:

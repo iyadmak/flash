@@ -1,7 +1,8 @@
-from flash.core.exceptions import ItemNotFound
+from flash.core.exceptions import ItemNotFound, InvalidCursor
 from flash.models.item_model import ItemModel
 from flash.schemas.item_schema import ItemCreate, ItemUpdate
 from flash.repositories.item_repository import ItemRepository
+from flash.core.pagination import decode_cursor, encode_cursor
 
 
 class ItemService:
@@ -14,8 +15,21 @@ class ItemService:
             raise ItemNotFound()
         return item
 
-    async def list(self, limit: int, offset: int) -> list[ItemModel]:
-        return list(await self._repo.list(limit, offset))
+    async def list_with_cursor(
+        self, limit: int, cursor: str | None
+    ) -> tuple[list[ItemModel], str | None]:
+        cursor_id: int | None = None
+        if cursor is not None:
+            try:
+                cursor_id = decode_cursor(cursor)
+            except ValueError:
+                raise InvalidCursor() from None
+        items = list(await self._repo.list_witt_cursor(limit, cursor_id))
+        next_cursor = None
+        if len(items) > limit:
+            items = items[:limit]
+            next_cursor = encode_cursor(items[-1].id)
+        return items, next_cursor
 
     async def create(self, data: ItemCreate) -> ItemModel:
         item = ItemModel(name=data.name, price=data.price, order_id=data.order_id)

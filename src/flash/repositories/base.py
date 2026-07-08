@@ -18,6 +18,15 @@ class BaseRepository[ModelT: Base]:
         )
         return result.scalars().all()
 
+    async def list_witt_cursor(
+        self, limit: int, cursor_id: int | None
+    ) -> Sequence[ModelT]:
+        query = select(self._model).order_by(self._model.id).limit(limit + 1)
+        if cursor_id is not None:
+            query = query.where(self._model.id > cursor_id)
+        result = await self._session.execute(query)
+        return result.scalars().all()
+
     async def create(self, instance: ModelT) -> ModelT:
         self._session.add(instance)
         await self._session.flush()

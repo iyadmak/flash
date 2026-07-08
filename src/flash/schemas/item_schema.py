@@ -19,3 +19,8 @@ class ItemRead(BaseModel):
     name: str
     price: float
     order_id: int
+
+
+class ItemPage(BaseModel):
+    items: list[ItemRead]
+    next_cursor: str | None

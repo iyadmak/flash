@@ -74,6 +74,12 @@ class Forbidden(AppError):
     detail = "you don't have permission to perform this action."
 
 
+class InvalidCursor(AppError):
+    status_code = 400
+    error_code = "invalid_code"
+    detail = "The provided pagination cursor is invalid."
+
+
 def register_exception_handlers(app: FastAPI) -> None:
     """Register all exception handlers on the app. Called once from main."""
 
