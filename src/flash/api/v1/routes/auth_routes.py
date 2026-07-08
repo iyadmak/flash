@@ -1,6 +1,7 @@
 from typing import Annotated
-from fastapi import APIRouter, status, Depends
+from fastapi import APIRouter, status, Depends, Request
 from fastapi.security import OAuth2PasswordRequestForm
+from flash.core.security import limiter
 from flash.api.deps import UserServiceDep, AuthServiceDep
 from flash.schemas.auth_schemas import TokenResponse
 from flash.schemas.user_schema import UserCreate, UserRead
@@ -15,7 +16,9 @@ async def register(user_service: UserServiceDep, data: UserCreate) -> UserRead:
 
 
 @router.post("/login")
+@limiter.limit("5/minute")
 async def login(
+    request: Request,
     auth_service: AuthServiceDep,
     form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
 ) -> TokenResponse:

@@ -4,6 +4,7 @@ import structlog
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from slowapi.errors import RateLimitExceeded
 
 logger = structlog.get_logger()
 
@@ -103,6 +104,19 @@ def register_exception_handlers(app: FastAPI) -> None:
         return JSONResponse(
             status_code=422,
             content={"error": "validation_error", "detail": exc.errors()},
+        )
+
+    @app.exception_handler(RateLimitExceeded)
+    async def handle_rate_limit_exceeded(
+        request: Request, exc: RateLimitExceeded
+    ) -> JSONResponse:
+        logger.warning("rate_limit_exceeded", path=request.url.path)
+        return JSONResponse(
+            status_code=429,
+            content={
+                "error": "rate_limit_exceeded",
+                "detail": "Too many requests. Please try again later.",
+            },
         )
 
     @app.exception_handler(Exception)

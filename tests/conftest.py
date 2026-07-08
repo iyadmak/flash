@@ -19,6 +19,7 @@ from sqlalchemy.ext.asyncio import (
 
 from flash.core.db import get_async_session
 from flash.core.config import get_settings
+from flash.core.security import limiter
 from flash.main import app
 
 
@@ -70,3 +71,8 @@ async def client(async_session: AsyncSession) -> AsyncIterator[AsyncClient]:
     ) as client:
         yield client
     app.dependency_overrides.clear()
+
+
+@pytest.fixture(autouse=True)
+def reset_rate_limiter() -> None:
+    limiter.reset()

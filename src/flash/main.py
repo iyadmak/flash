@@ -1,16 +1,17 @@
 """Application Entry Point"""
 
+import structlog
 from contextlib import asynccontextmanager
 from collections.abc import AsyncIterator
-import structlog
-
 from fastapi import FastAPI
+
 from flash.api.routes import health
 from flash.api.v1.router import router as v1_router
 from flash.core.config import get_settings
 from flash.core.log_config import configure_logging
 from flash.core.exceptions import register_exception_handlers
 from flash.core.middleware import RequestLoggingMiddleware
+from flash.core.security import limiter
 
 
 @asynccontextmanager
@@ -30,6 +31,7 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
 
 
 app = FastAPI(title=get_settings().app_name, lifespan=lifespan)
+app.state.limiter = limiter
 app.add_middleware(RequestLoggingMiddleware)
 register_exception_handlers(app)
 app.include_router(health.router)

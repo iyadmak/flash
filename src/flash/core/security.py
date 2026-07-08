@@ -2,10 +2,13 @@ import jwt
 from typing import cast
 from argon2 import PasswordHasher
 from argon2.exceptions import VerifyMismatchError
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 from datetime import datetime, timedelta, timezone
 from flash.core.config import get_settings
 
 _hasher = PasswordHasher()
+limiter = Limiter(key_func=get_remote_address)
 
 
 def create_access_token(subject: str) -> str:

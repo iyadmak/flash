@@ -75,3 +75,15 @@ class TestLogin:
             data={"username": "nobody@example.com", "password": "whatever123"},
         )
         assert response.status_code == 401
+
+
+class TestLoginRateLimit:
+    async def test_blocks_after_too_many_attempts(self, client: AsyncClient) -> None:
+        for _ in range(5):
+            await client.post(
+                f"{BASE}/login", data={"username": "x@example.com", "password": "wrong"}
+            )
+        response = await client.post(
+            f"{BASE}/login", data={"username": "x@example.com", "password": "wrong"}
+        )
+        assert response.status_code == 429
