@@ -56,3 +56,18 @@ class TestUpdate:
             headers=auth_headers,
         )
         assert resp.status_code == 403
+
+
+class TestGetMe:
+    async def test_returns_the_logged_in_user(
+        self, client: AsyncClient, user: UserModel, auth_headers: dict[str, str]
+    ) -> None:
+        resp = await client.get("/api/v1/users/me", headers=auth_headers)
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["id"] == user.id
+        assert data["email"] == user.email
+
+    async def test_requires_authentication(self, client: AsyncClient) -> None:
+        resp = await client.get("/api/v1/users/me")
+        assert resp.status_code == 401
