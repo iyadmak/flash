@@ -87,3 +87,30 @@ class TestLoginRateLimit:
             f"{BASE}/login", data={"username": "x@example.com", "password": "wrong"}
         )
         assert response.status_code == 429
+
+
+class TestPasswordReset:
+    async def test_request_for_existing_email_returns_202(
+        self, client: AsyncClient, user: UserModel
+    ) -> None:
+        response = await client.post(
+            f"{BASE}/password-reset/request", json={"email": user.email}
+        )
+        assert response.status_code == 202
+
+    async def test_request_for_unknown_email_also_returns_202(
+        self, client: AsyncClient
+    ) -> None:
+        response = await client.post(
+            f"{BASE}/password-reset/request", json={"email": "nobody@example.com"}
+        )
+        assert response.status_code == 202
+
+    async def test_confirm_with_bad_token_returns_401(
+        self, client: AsyncClient
+    ) -> None:
+        response = await client.post(
+            f"{BASE}/password-reset/confirm",
+            json={"token": "not-a-real-token", "new_password": "newpassword123"},
+        )
+        assert response.status_code == 401

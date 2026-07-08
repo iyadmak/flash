@@ -19,6 +19,7 @@ from flash.repositories import (
     OrderRepository,
     RestaurantRepository,
     UserRepository,
+    PasswordResetTokenRepository,
 )
 from flash.models.user_model import UserModel
 
@@ -28,6 +29,12 @@ DBSessionDep = Annotated[AsyncSession, Depends(get_async_session)]
 
 
 # ------------------- Repository dependencies -------------------
+def get_password_reset_token_repository(
+    session: DBSessionDep,
+) -> PasswordResetTokenRepository:
+    return PasswordResetTokenRepository(session)
+
+
 def get_item_repository(session: DBSessionDep) -> ItemRepository:
     return ItemRepository(session)
 
@@ -48,11 +55,16 @@ ItemRepoDep = Annotated[ItemRepository, Depends(get_item_repository)]
 OrderRepoDep = Annotated[OrderRepository, Depends(get_order_repository)]
 RestaurantRepoDep = Annotated[RestaurantRepository, Depends(get_restaurant_repository)]
 UserRepoDep = Annotated[UserRepository, Depends(get_user_repository)]
+PasswordResetTokenRepoDep = Annotated[
+    PasswordResetTokenRepository, Depends(get_password_reset_token_repository)
+]
 
 
 # ------------------- Service dependencies -------------------
-def get_auth_service(repo: UserRepoDep) -> AuthService:
-    return AuthService(repo)
+def get_auth_service(
+    user_repo: UserRepoDep, reset_token_repo: PasswordResetTokenRepoDep
+) -> AuthService:
+    return AuthService(user_repo, reset_token_repo)
 
 
 def get_item_service(repo: ItemRepoDep) -> ItemService:
