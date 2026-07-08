@@ -1,13 +1,17 @@
-from fastapi import APIRouter, status, Query
+from fastapi import APIRouter, Depends, status, Query
 
-from flash.api.deps import RestaurantServiceDep
+from flash.api.deps import RestaurantServiceDep, get_current_user
 from flash.schemas.restaurant_schema import (
     RestaurantRead,
     RestaurantCreate,
     RestaurantUpdate,
 )
 
-router = APIRouter(prefix="/restaurants", tags=["restaurants"])
+router = APIRouter(
+    prefix="/restaurants",
+    tags=["restaurants"],
+    dependencies=[Depends(get_current_user)],
+)
 
 
 @router.get("/")

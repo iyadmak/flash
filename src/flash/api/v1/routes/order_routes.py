@@ -1,8 +1,10 @@
-from fastapi import APIRouter, status, Query
-from flash.api.deps import OrderServiceDep
+from fastapi import APIRouter, Depends, status, Query
+from flash.api.deps import OrderServiceDep, get_current_user
 from flash.schemas.order_schema import OrderCreate, OrderUpdate, OrderRead
 
-router = APIRouter(prefix="/orders", tags=["orders"])
+router = APIRouter(
+    prefix="/orders", tags=["orders"], dependencies=[Depends(get_current_user)]
+)
 
 
 @router.get("/")

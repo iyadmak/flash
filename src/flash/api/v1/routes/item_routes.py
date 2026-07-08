@@ -1,8 +1,10 @@
-from fastapi import APIRouter, Query, status
+from fastapi import APIRouter, Depends, Query, status
 from flash.schemas.item_schema import ItemRead, ItemCreate, ItemUpdate
-from flash.api.deps import ItemServiceDep
+from flash.api.deps import ItemServiceDep, get_current_user
 
-router = APIRouter(prefix="/items", tags=["items"])
+router = APIRouter(
+    prefix="/items", tags=["items"], dependencies=[Depends(get_current_user)]
+)
 
 
 @router.get("/")
