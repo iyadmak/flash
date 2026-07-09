@@ -10,7 +10,9 @@ services:
       db:
         condition: service_healthy
       pgbouncer:
-        condition: service_started
+        condition: service_healthy
+      redis:
+        condition: service_healthy
 
   db:
     image: postgres:17
@@ -22,7 +24,6 @@ services:
       - ${DATABASE_PORT}:${DATABASE_PORT}
     volumes:
       - postgres_data:/var/lib/postgresql/data
-
     healthcheck:
       test: [ "CMD-SHELL", "pg_isready -U ${DATABASE_USER}" ]
       interval: 5s
@@ -49,6 +50,22 @@ services:
     depends_on:
       db:
         condition: service_healthy
+    healthcheck:
+      test: [ "CMD", "pg_isready", "-h", "localhost", "-p", "6432", "-U", "${DATABASE_USER}" ]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    command: redis-server --save "" --appendonly no
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 5s
+      timeout: 3s
+      retries: 5
 
 volumes:
   postgres_data:

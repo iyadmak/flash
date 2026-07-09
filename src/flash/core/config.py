@@ -22,6 +22,7 @@ class Settings(BaseSettings):
     db_pool_recycle: int = 1800
     db_pool_pre_ping: bool = True
     real_database_url: str
+    redis_url: str = "redis://redis:6379"
     # ------- auth config -------
     secret_key: str
     jwt_algorithm: str = "HS256"

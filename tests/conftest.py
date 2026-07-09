@@ -10,6 +10,7 @@ from alembic import command
 from alembic.config import Config
 from testcontainers.postgres import PostgresContainer
 from httpx import AsyncClient, ASGITransport
+from limits.aio.storage import MemoryStorage
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     AsyncSession,
@@ -19,7 +20,7 @@ from sqlalchemy.ext.asyncio import (
 
 from flash.core.db import get_async_session
 from flash.core.config import get_settings
-from flash.core.security import limiter
+from flash.core.rate_limit import get_rate_limit_storage
 from flash.main import app
 
 
@@ -73,6 +74,10 @@ async def client(async_session: AsyncSession) -> AsyncIterator[AsyncClient]:
     app.dependency_overrides.clear()
 
 
+_test_rate_limit_storage = MemoryStorage()
+
+
 @pytest.fixture(autouse=True)
-def reset_rate_limiter() -> None:
-    limiter.reset()
+async def reset_rate_limiter() -> None:
+    app.dependency_overrides[get_rate_limit_storage] = lambda: _test_rate_limit_storage
+    await _test_rate_limit_storage.reset()

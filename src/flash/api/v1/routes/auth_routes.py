@@ -1,7 +1,7 @@
 from typing import Annotated
-from fastapi import APIRouter, status, Depends, Request
+from fastapi import APIRouter, status, Depends
 from fastapi.security import OAuth2PasswordRequestForm
-from flash.core.security import limiter
+from flash.core.rate_limit import rate_limit
 from flash.api.deps import UserServiceDep, AuthServiceDep
 from flash.schemas.auth_schemas import (
     PasswordResetRequest,
@@ -19,10 +19,8 @@ async def register(user_service: UserServiceDep, data: UserCreate) -> UserRead:
     return UserRead.model_validate(user)
 
 
-@router.post("/login")
-@limiter.limit("5/minute")
+@router.post("/login", dependencies=[Depends(rate_limit("5/minute"))])
 async def login(
-    request: Request,
     auth_service: AuthServiceDep,
     form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
 ) -> TokenResponse:
