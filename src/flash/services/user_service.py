@@ -3,6 +3,7 @@ from typing import Protocol
 from sqlalchemy.exc import IntegrityError
 from flash.core.exceptions import UserNotFound, EmailAlreadyRegistered
 from flash.core.security import hash_password
+from flash.core.cache import CacheProtocol
 from flash.models.user_model import UserModel
 from flash.schemas.user_schema import UserCreate, UserUpdate
 
@@ -18,8 +19,9 @@ class UserRepositoryProtocol(Protocol):
 
 
 class UserService:
-    def __init__(self, repo: UserRepositoryProtocol) -> None:
+    def __init__(self, repo: UserRepositoryProtocol, cache: CacheProtocol) -> None:
         self._repo = repo
+        self._cache = cache
 
     async def get(self, user_id: int) -> UserModel:
         user = await self._repo.get(user_id)
@@ -62,6 +64,7 @@ class UserService:
             changed_fields.append("is_active")
         await self._repo.commit()
         await self._repo.refresh(user)
+        await self._cache.delete(f"user:{user_id}")
         logger.info("user_updated", user_id=user.id, changed_fields=changed_fields)
         return user
 
@@ -69,4 +72,5 @@ class UserService:
         user = await self.get(user_id)
         await self._repo.delete(user)
         await self._repo.commit()
+        await self._cache.delete(f"user:{user_id}")
         logger.info("user_deleted", user_id=user_id)

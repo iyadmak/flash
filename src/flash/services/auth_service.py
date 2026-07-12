@@ -5,6 +5,7 @@ from typing import Protocol
 from datetime import datetime, timedelta, timezone
 
 from flash.core.exceptions import InvalidCredentials, InvalidToken
+from flash.core.cache import CacheProtocol
 from flash.core.security import (
     create_access_token,
     hash_password,
@@ -12,6 +13,9 @@ from flash.core.security import (
     decode_access_token,
 )
 from flash.models import UserModel, PasswordResetTokenModel
+from flash.schemas.user_schema import UserRead
+
+USER_CACHE_TTL_SECONDS = 300
 
 # compute at import time to have the same amount of time as a real password check
 # so wrong password and wrong email can't be told apart by response time
@@ -44,9 +48,11 @@ class AuthService:
         self,
         user_repo: AuthRepositoryProtocol,
         reset_token_repo: PasswordResetRepositoryProtocol,
+        cache: CacheProtocol,
     ) -> None:
         self._user_repo = user_repo
         self._reset_token_repo = reset_token_repo
+        self._cache = cache
 
     async def login(self, email: str, password: str) -> str:
         user = await self._user_repo.get_by_email(email)
@@ -57,14 +63,24 @@ class AuthService:
             raise InvalidCredentials()
         return create_access_token(subject=str(user.id))
 
-    async def get_current_user(self, token: str) -> UserModel:
+    async def get_current_user(self, token: str) -> UserRead:
         try:
             user_id = decode_access_token(token)
         except jwt.PyJWTError:
             raise InvalidToken() from None
-        user = await self._user_repo.get(int(user_id))
-        if user is None or not user.is_active:
+        cached_user = await self._cache.get(f"user:{user_id}")
+        if cached_user is not None:
+            user = UserRead.model_validate_json(cached_user)
+            if not user.is_active:
+                raise InvalidToken()
+            return user
+        db_user = await self._user_repo.get(int(user_id))
+        if db_user is None or not db_user.is_active:
             raise InvalidToken()
+        user = UserRead.model_validate(db_user)
+        await self._cache.set(
+            f"user:{user_id}", user.model_dump_json(), ex=USER_CACHE_TTL_SECONDS
+        )
         return user
 
     async def request_password_reset(self, email: str) -> str | None:

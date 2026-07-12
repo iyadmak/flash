@@ -53,6 +53,21 @@ class FakePasswordResetTokenRepository:
         pass
 
 
+class FakeCache:
+    def __init__(self) -> None:
+        self._data: dict[str, str] = {}
+
+    async def get(self, name: str, /) -> str | None:
+        return self._data.get(name)
+
+    async def set(self, name: str, value: str, ex: int | None = None) -> None:
+        self._data[name] = value
+
+    async def delete(self, *names: str) -> None:
+        for name in names:
+            self._data.pop(name, None)
+
+
 @pytest.fixture
 def user_repo() -> FakeUserRepository:
     return FakeUserRepository()
@@ -67,14 +82,21 @@ def reset_token_repo() -> FakePasswordResetTokenRepository:
 def service(
     user_repo: FakeUserRepository, reset_token_repo: FakePasswordResetTokenRepository
 ) -> AuthService:
-    return AuthService(user_repo, reset_token_repo)
+    return AuthService(user_repo, reset_token_repo, FakeCache())
 
 
 def _make_user(
     email: str = "iyad@example.com", password: str = "old-password"
 ) -> UserModel:
+    now = datetime.now(timezone.utc)
     return UserModel(
-        username="iyad", email=email, password=hash_password(password), is_active=True
+        username="iyad",
+        email=email,
+        password=hash_password(password),
+        is_active=True,
+        is_verified=False,
+        created_at=now,
+        updated_at=now,
     )
 
 

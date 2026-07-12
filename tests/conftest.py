@@ -20,6 +20,7 @@ from sqlalchemy.ext.asyncio import (
 
 from flash.core.db import get_async_session
 from flash.core.config import get_settings
+from flash.core.cache import get_user_cache
 from flash.core.rate_limit import get_rate_limit_storage
 from flash.main import app
 
@@ -81,3 +82,30 @@ _test_rate_limit_storage = MemoryStorage()
 async def reset_rate_limiter() -> None:
     app.dependency_overrides[get_rate_limit_storage] = lambda: _test_rate_limit_storage
     await _test_rate_limit_storage.reset()
+
+
+class FakeCache:
+    def __init__(self) -> None:
+        self._data: dict[str, str] = {}
+
+    async def get(self, name: str, /) -> str | None:
+        return self._data.get(name)
+
+    async def set(self, name: str, value: str, ex: int | None = None) -> None:
+        self._data[name] = value
+
+    async def delete(self, *names: str) -> None:
+        for name in names:
+            self._data.pop(name, None)
+
+    def clear(self) -> None:
+        self._data.clear()
+
+
+_test_user_cache = FakeCache()
+
+
+@pytest.fixture(autouse=True)
+async def reset_user_cache() -> None:
+    app.dependency_overrides[get_user_cache] = lambda: _test_user_cache
+    _test_user_cache.clear()

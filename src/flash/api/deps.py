@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi.security import OAuth2PasswordBearer
 
 from flash.core.config import Settings, get_settings
+from flash.schemas.user_schema import UserRead
 from flash.services import (
     UserService,
     RestaurantService,
@@ -14,6 +15,7 @@ from flash.services import (
     AuthService,
 )
 from flash.core.db import get_async_session
+from flash.core.cache import CacheProtocol, get_user_cache
 from flash.repositories import (
     ItemRepository,
     OrderRepository,
@@ -21,11 +23,11 @@ from flash.repositories import (
     UserRepository,
     PasswordResetTokenRepository,
 )
-from flash.models.user_model import UserModel
 
 # ------------------- General dependencies -------------------
 SettingsDep = Annotated[Settings, Depends(get_settings)]
 DBSessionDep = Annotated[AsyncSession, Depends(get_async_session)]
+CacheDep = Annotated[CacheProtocol, Depends(get_user_cache)]
 
 
 # ------------------- Repository dependencies -------------------
@@ -62,17 +64,17 @@ PasswordResetTokenRepoDep = Annotated[
 
 # ------------------- Service dependencies -------------------
 def get_auth_service(
-    user_repo: UserRepoDep, reset_token_repo: PasswordResetTokenRepoDep
+    user_repo: UserRepoDep, reset_token_repo: PasswordResetTokenRepoDep, cache: CacheDep
 ) -> AuthService:
-    return AuthService(user_repo, reset_token_repo)
+    return AuthService(user_repo, reset_token_repo, cache)
 
 
 def get_item_service(repo: ItemRepoDep) -> ItemService:
     return ItemService(repo)
 
 
-def get_user_service(repo: UserRepoDep) -> UserService:
-    return UserService(repo)
+def get_user_service(repo: UserRepoDep, cache: CacheDep) -> UserService:
+    return UserService(repo, cache)
 
 
 def get_restaurant_service(repo: RestaurantRepoDep) -> RestaurantService:
@@ -96,8 +98,8 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
 
 async def get_current_user(
     token: Annotated[str, Depends(oauth2_scheme)], auth_service: AuthServiceDep
-) -> UserModel:
+) -> UserRead:
     return await auth_service.get_current_user(token)
 
 
-CurrentUserDep = Annotated[UserModel, Depends(get_current_user)]
+CurrentUserDep = Annotated[UserRead, Depends(get_current_user)]

@@ -41,6 +41,21 @@ class FakeUserRepository:
         pass
 
 
+class FakeCache:
+    def __init__(self) -> None:
+        self._data: dict[str, str] = {}
+
+    async def get(self, name: str, /) -> str | None:
+        return self._data.get(name)
+
+    async def set(self, name: str, value: str, ex: int | None = None) -> None:
+        self._data[name] = value
+
+    async def delete(self, *names: str) -> None:
+        for name in names:
+            self._data.pop(name, None)
+
+
 @pytest.fixture
 def repo() -> FakeUserRepository:
     return FakeUserRepository()
@@ -48,7 +63,7 @@ def repo() -> FakeUserRepository:
 
 @pytest.fixture
 def service(repo: FakeUserRepository) -> UserService:
-    return UserService(repo)
+    return UserService(repo, FakeCache())
 
 
 class TestGet:
