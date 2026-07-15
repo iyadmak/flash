@@ -32,10 +32,7 @@ async def login(
 async def request_password_reset(
     auth_service: AuthServiceDep, data: PasswordResetRequest
 ) -> None:
-    token = await auth_service.request_password_reset(data.email)
-    if token is not None:
-        # TODO: replace with a real email send once there's an email service.
-        print(f"[DEV] Password reset link: /reset-password?token={token}")
+    await auth_service.request_password_reset(data.email)
 
 
 @router.post("/password-reset/confirm")

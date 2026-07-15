@@ -1,6 +1,7 @@
 """Unit tests for AuthService — no DB, no HTTP, just the service against fakes."""
 
 from datetime import datetime, timedelta, timezone
+from typing import Any
 
 import pytest
 
@@ -68,6 +69,15 @@ class FakeCache:
             self._data.pop(name, None)
 
 
+class FakeTaskQueue:
+    def __init__(self) -> None:
+        self.enqueued: list[tuple[str, tuple[Any, ...]]] = []
+
+    async def enqueue_job(self, function: str, *args: Any, **kwargs: Any) -> Any:
+        self.enqueued.append((function, args))
+        return None
+
+
 @pytest.fixture
 def user_repo() -> FakeUserRepository:
     return FakeUserRepository()
@@ -84,12 +94,18 @@ def cache() -> FakeCache:
 
 
 @pytest.fixture
+def task_queue() -> FakeTaskQueue:
+    return FakeTaskQueue()
+
+
+@pytest.fixture
 def service(
     user_repo: FakeUserRepository,
     reset_token_repo: FakePasswordResetTokenRepository,
     cache: FakeCache,
+    task_queue: FakeTaskQueue,
 ) -> AuthService:
-    return AuthService(user_repo, reset_token_repo, cache)
+    return AuthService(user_repo, reset_token_repo, cache, task_queue)
 
 
 def _make_user(
@@ -225,6 +241,29 @@ class TestPasswordReset:
 
         assert verify_password("new-password123", user.password)
         assert not verify_password("old-password", user.password)
+
+    async def test_requesting_reset_enqueues_the_email_task(
+        self,
+        service: AuthService,
+        user_repo: FakeUserRepository,
+        task_queue: FakeTaskQueue,
+    ) -> None:
+        user = user_repo.seed(_make_user())
+
+        raw_token = await service.request_password_reset(user.email)
+
+        assert raw_token is not None
+        assert task_queue.enqueued == [
+            ("send_password_reset_email", (user.email, raw_token))
+        ]
+
+    async def test_unknown_email_enqueues_no_task(
+        self, service: AuthService, task_queue: FakeTaskQueue
+    ) -> None:
+        result = await service.request_password_reset("nobody@example.com")
+
+        assert result is None
+        assert task_queue.enqueued == []
 
     async def test_unknown_email_returns_none_and_creates_no_token(
         self, service: AuthService, reset_token_repo: FakePasswordResetTokenRepository
