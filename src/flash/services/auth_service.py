@@ -14,6 +14,7 @@ from flash.core.security import (
 )
 from flash.models import UserModel, PasswordResetTokenModel
 from flash.schemas.user_schema import UserRead
+from flash.core.config import get_settings
 
 USER_CACHE_TTL_SECONDS = 300
 
@@ -65,23 +66,34 @@ class AuthService:
 
     async def get_current_user(self, token: str) -> UserRead:
         try:
-            user_id = decode_access_token(token)
+            payload = decode_access_token(token)
         except jwt.PyJWTError:
             raise InvalidToken() from None
-        cached_user = await self._cache.get(f"user:{user_id}")
+        valid_after = await self._cache.get(f"token_valid_after:{payload.sub}")
+        if valid_after is not None and payload.iat.timestamp() <= float(valid_after):
+            raise InvalidToken()
+        cached_user = await self._cache.get(f"user:{payload.sub}")
         if cached_user is not None:
             user = UserRead.model_validate_json(cached_user)
             if not user.is_active:
                 raise InvalidToken()
             return user
-        db_user = await self._user_repo.get(int(user_id))
+        db_user = await self._user_repo.get(int(payload.sub))
         if db_user is None or not db_user.is_active:
             raise InvalidToken()
         user = UserRead.model_validate(db_user)
         await self._cache.set(
-            f"user:{user_id}", user.model_dump_json(), ex=USER_CACHE_TTL_SECONDS
+            f"user:{payload.sub}", user.model_dump_json(), ex=USER_CACHE_TTL_SECONDS
         )
         return user
+
+    async def revoke_all_sessions(self, user_id: int) -> None:
+        now = int(datetime.now(timezone.utc).timestamp())
+        await self._cache.set(
+            f"token_valid_after:{user_id}",
+            str(now),
+            ex=get_settings().access_token_expire_minutes * 60,
+        )
 
     async def request_password_reset(self, email: str) -> str | None:
         user = await self._user_repo.get_by_email(email)
@@ -110,3 +122,4 @@ class AuthService:
         user.password = hash_password(new_password)
         reset_token.used_at = datetime.now(timezone.utc)
         await self._reset_token_repo.commit()
+        await self.revoke_all_sessions(user.id)

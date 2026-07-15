@@ -79,10 +79,17 @@ def reset_token_repo() -> FakePasswordResetTokenRepository:
 
 
 @pytest.fixture
+def cache() -> FakeCache:
+    return FakeCache()
+
+
+@pytest.fixture
 def service(
-    user_repo: FakeUserRepository, reset_token_repo: FakePasswordResetTokenRepository
+    user_repo: FakeUserRepository,
+    reset_token_repo: FakePasswordResetTokenRepository,
+    cache: FakeCache,
 ) -> AuthService:
-    return AuthService(user_repo, reset_token_repo, FakeCache())
+    return AuthService(user_repo, reset_token_repo, cache)
 
 
 def _make_user(
@@ -147,6 +154,64 @@ class TestGetCurrentUser:
             await service.get_current_user(token)
 
 
+class TestRevokeAllSessions:
+    async def test_revoking_invalidates_a_token_issued_before_it(
+        self, service: AuthService, user_repo: FakeUserRepository
+    ) -> None:
+        user = user_repo.seed(_make_user())
+        token = await service.login("iyad@example.com", "old-password")
+
+        await service.revoke_all_sessions(user.id)
+
+        with pytest.raises(InvalidToken):
+            await service.get_current_user(token)
+
+    async def test_token_issued_after_revocation_still_works(
+        self, service: AuthService, user_repo: FakeUserRepository, cache: FakeCache
+    ) -> None:
+        # Set a cutoff clearly in the past rather than calling revoke_all_sessions()
+        # right before login() -- both use real wall-clock time, and JWT's `iat`
+        # only has whole-second precision, so racing the two real-time calls
+        # against each other would make this test's outcome depend on whether
+        # they land in the same second.
+        user = user_repo.seed(_make_user())
+        old_cutoff = int(datetime.now(timezone.utc).timestamp()) - 10
+        await cache.set(f"token_valid_after:{user.id}", str(old_cutoff))
+
+        token = await service.login("iyad@example.com", "old-password")
+        current = await service.get_current_user(token)
+
+        assert current.id == user.id
+
+    async def test_revoking_one_user_does_not_affect_another(
+        self, service: AuthService, user_repo: FakeUserRepository
+    ) -> None:
+        user_a = user_repo.seed(_make_user(email="a@example.com"))
+        user_b = user_repo.seed(_make_user(email="b@example.com"))
+        token_a = await service.login("a@example.com", "old-password")
+        token_b = await service.login("b@example.com", "old-password")
+
+        await service.revoke_all_sessions(user_a.id)
+
+        with pytest.raises(InvalidToken):
+            await service.get_current_user(token_a)
+        current_b = await service.get_current_user(token_b)
+        assert current_b.id == user_b.id
+
+    async def test_revocation_is_checked_even_when_user_is_cached(
+        self, service: AuthService, user_repo: FakeUserRepository
+    ) -> None:
+        user = user_repo.seed(_make_user())
+        token = await service.login("iyad@example.com", "old-password")
+
+        await service.get_current_user(token)  # warm the UserRead cache
+
+        await service.revoke_all_sessions(user.id)
+
+        with pytest.raises(InvalidToken):
+            await service.get_current_user(token)
+
+
 class TestPasswordReset:
     async def test_full_round_trip_changes_the_password(
         self, service: AuthService, user_repo: FakeUserRepository
@@ -202,3 +267,16 @@ class TestPasswordReset:
     async def test_bad_token_is_rejected(self, service: AuthService) -> None:
         with pytest.raises(InvalidToken):
             await service.reset_password("not-a-real-token", "new-password123")
+
+    async def test_resetting_password_invalidates_existing_tokens(
+        self, service: AuthService, user_repo: FakeUserRepository
+    ) -> None:
+        user = user_repo.seed(_make_user())
+        old_token = await service.login("iyad@example.com", "old-password")
+
+        raw_token = await service.request_password_reset(user.email)
+        assert raw_token is not None
+        await service.reset_password(raw_token, "new-password123")
+
+        with pytest.raises(InvalidToken):
+            await service.get_current_user(old_token)
