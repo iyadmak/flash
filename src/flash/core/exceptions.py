@@ -85,6 +85,12 @@ class RateLimitExceeded(AppError):
     detail = "Too many requests. Please try again later."
 
 
+class DuplicateRequest(AppError):
+    status_code = 409
+    error_code = "duplicate_request"
+    detail = "An identical request is already being processed."
+
+
 def register_exception_handlers(app: FastAPI) -> None:
     """Register all exception handlers on the app. Called once from main."""
 

@@ -1,16 +1,28 @@
 import structlog
+from typing import Protocol, Sequence
 from datetime import datetime
+from redis.exceptions import LockError
 from flash.models.order_model import OrderModel
 from flash.schemas.order_schema import OrderCreate, OrderUpdate
-from flash.core.exceptions import OrderNotFound
-from flash.repositories.order_repository import OrderRepository
+from flash.core.exceptions import OrderNotFound, DuplicateRequest
+from flash.core.lock import LockProtocol
 
 logger = structlog.get_logger()
 
 
+class OrderRepoProtocol(Protocol):
+    async def get(self, id: int) -> OrderModel | None: ...
+    async def list(self, limit: int, offset: int) -> Sequence[OrderModel]: ...
+    async def create(self, instance: OrderModel) -> OrderModel: ...
+    async def delete(self, instance: OrderModel) -> None: ...
+    async def commit(self) -> None: ...
+    async def refresh(self, instance: OrderModel) -> None: ...
+
+
 class OrderService:
-    def __init__(self, repo: OrderRepository) -> None:
+    def __init__(self, repo: OrderRepoProtocol, lock_client: LockProtocol) -> None:
         self._repo = repo
+        self._lock_client = lock_client
 
     async def get(self, order_id: int) -> OrderModel:
         order = await self._repo.get(order_id)
@@ -22,15 +34,20 @@ class OrderService:
         return list(await self._repo.list(limit, offset))
 
     async def create(self, data: OrderCreate) -> OrderModel:
-        order = OrderModel(
-            user_id=data.user_id,
-            restaurant_id=data.restaurant_id,
-            total_price=data.total_price,
-            status=data.status,
-        )
-        order = await self._repo.create(order)
-        await self._repo.commit()
-        return order
+        lock_key = f"order_lock:user:{data.user_id}:restaurant:{data.restaurant_id}"
+        try:
+            async with self._lock_client.lock(lock_key, timeout=10, blocking=False):
+                order = OrderModel(
+                    user_id=data.user_id,
+                    restaurant_id=data.restaurant_id,
+                    total_price=data.total_price,
+                    status=data.status,
+                )
+                order = await self._repo.create(order)
+                await self._repo.commit()
+                return order
+        except LockError:
+            raise DuplicateRequest() from None
 
     async def update(self, order_id: int, data: OrderUpdate) -> OrderModel:
         order = await self.get(order_id)

@@ -16,6 +16,7 @@ from flash.services import (
 )
 from flash.core.db import get_async_session
 from flash.core.cache import CacheProtocol, get_user_cache
+from flash.core.lock import LockProtocol, get_lock_client
 from flash.repositories import (
     ItemRepository,
     OrderRepository,
@@ -28,6 +29,7 @@ from flash.repositories import (
 SettingsDep = Annotated[Settings, Depends(get_settings)]
 DBSessionDep = Annotated[AsyncSession, Depends(get_async_session)]
 CacheDep = Annotated[CacheProtocol, Depends(get_user_cache)]
+LockClientDep = Annotated[LockProtocol, Depends(get_lock_client)]
 
 
 # ------------------- Repository dependencies -------------------
@@ -81,8 +83,8 @@ def get_restaurant_service(repo: RestaurantRepoDep) -> RestaurantService:
     return RestaurantService(repo)
 
 
-def get_order_service(repo: OrderRepoDep) -> OrderService:
-    return OrderService(repo)
+def get_order_service(repo: OrderRepoDep, lock_client: LockClientDep) -> OrderService:
+    return OrderService(repo, lock_client)
 
 
 AuthServiceDep = Annotated[AuthService, Depends(get_auth_service)]

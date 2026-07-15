@@ -1,16 +1,19 @@
 """Shared test fixtures: DB setup, per-test session, and async HTTP client."""
 
 import os
-from typing import cast
+import asyncio
+from contextlib import asynccontextmanager
+from typing import Any, cast
 
 import pytest
 import pytest_asyncio
-from collections.abc import Iterator, AsyncIterator
+from collections.abc import AsyncIterator, Iterator
 from alembic import command
 from alembic.config import Config
 from testcontainers.postgres import PostgresContainer
 from httpx import AsyncClient, ASGITransport
 from limits.aio.storage import MemoryStorage
+from redis.exceptions import LockError
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     AsyncSession,
@@ -21,6 +24,7 @@ from sqlalchemy.ext.asyncio import (
 from flash.core.db import get_async_session
 from flash.core.config import get_settings
 from flash.core.cache import get_user_cache
+from flash.core.lock import get_lock_client
 from flash.core.rate_limit import get_rate_limit_storage
 from flash.main import app
 
@@ -109,3 +113,40 @@ _test_user_cache = FakeCache()
 async def reset_user_cache() -> None:
     app.dependency_overrides[get_user_cache] = lambda: _test_user_cache
     _test_user_cache.clear()
+
+
+class FakeLockClient:
+    def __init__(self) -> None:
+        self._locked: set[str] = set()
+
+    @asynccontextmanager
+    async def _acquire(self, name: str, blocking: bool) -> AsyncIterator[None]:
+        if name in self._locked:
+            if not blocking:
+                raise LockError(  # type: ignore[no-untyped-call]
+                    "Unable to acquire lock within the time specified"
+                )
+            while name in self._locked:
+                await asyncio.sleep(0.01)
+        self._locked.add(name)
+        try:
+            yield
+        finally:
+            self._locked.discard(name)
+
+    def lock(
+        self, name: str, *, timeout: float | None = None, blocking: bool = True
+    ) -> Any:
+        return self._acquire(name, blocking)
+
+    def clear(self) -> None:
+        self._locked.clear()
+
+
+_test_lock_client = FakeLockClient()
+
+
+@pytest.fixture(autouse=True)
+async def reset_lock_client() -> None:
+    app.dependency_overrides[get_lock_client] = lambda: _test_lock_client
+    _test_lock_client.clear()
