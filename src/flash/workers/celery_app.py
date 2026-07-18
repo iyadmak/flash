@@ -3,7 +3,7 @@ from kombu import Exchange, Queue
 from flash.core.config import get_settings
 
 celery_app = Celery(
-    "flash", broker=get_settings().rabbitmq_url, include=["flash.celery_tasks"]
+    "flash", broker=get_settings().rabbitmq_url, include=["flash.workers.tasks"]
 )
 # Requires tasks to be safe to run more than once
 celery_app.conf.task_acks_late = True

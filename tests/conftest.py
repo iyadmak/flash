@@ -23,9 +23,9 @@ from sqlalchemy.ext.asyncio import (
 
 from flash.core.db import get_async_session
 from flash.core.config import get_settings
-from flash.core.cache import get_user_cache
-from flash.core.lock import get_lock_client
-from flash.core.rate_limit import get_rate_limit_storage
+from flash.core.adapters.cache import get_user_cache
+from flash.core.adapters.lock import get_lock_client
+from flash.core.adapters.rate_limit import get_rate_limit_storage
 from flash.main import app
 
 

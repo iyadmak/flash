@@ -1,7 +1,7 @@
 import time
 
 import structlog
-from flash.celery_app import celery_app
+from flash.workers.celery_app import celery_app
 
 logger = structlog.get_logger()
 

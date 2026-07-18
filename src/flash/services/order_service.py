@@ -5,7 +5,7 @@ from redis.exceptions import LockError
 from flash.models.order_model import OrderModel
 from flash.schemas.order_schema import OrderCreate, OrderUpdate
 from flash.core.exceptions import OrderNotFound, DuplicateRequest
-from flash.core.lock import LockProtocol
+from flash.core.adapters.lock import LockProtocol
 
 logger = structlog.get_logger()
 

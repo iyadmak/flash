@@ -15,8 +15,8 @@ from flash.services import (
     AuthService,
 )
 from flash.core.db import get_async_session
-from flash.core.cache import CacheProtocol, get_user_cache
-from flash.core.lock import LockProtocol, get_lock_client
+from flash.core.adapters.cache import CacheProtocol, get_user_cache
+from flash.core.adapters.lock import LockProtocol, get_lock_client
 from flash.repositories import (
     ItemRepository,
     OrderRepository,

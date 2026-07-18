@@ -5,14 +5,14 @@ from typing import Protocol
 from datetime import datetime, timedelta, timezone
 
 from flash.core.exceptions import InvalidCredentials, InvalidToken
-from flash.core.cache import CacheProtocol
+from flash.core.adapters.cache import CacheProtocol
 from flash.core.security import (
     create_access_token,
     hash_password,
     verify_password,
     decode_access_token,
 )
-from flash.celery_tasks import send_password_reset_email_celery
+from flash.workers.tasks import send_password_reset_email_celery
 from flash.models import UserModel, PasswordResetTokenModel
 from flash.schemas.user_schema import UserRead
 from flash.core.config import get_settings

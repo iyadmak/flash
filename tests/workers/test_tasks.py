@@ -1,5 +1,5 @@
-from flash.celery_app import dead_letter_queue, dlx, main_queue
-from flash.celery_tasks import send_password_reset_email_celery
+from flash.workers.celery_app import dead_letter_queue, dlx, main_queue
+from flash.workers.tasks import send_password_reset_email_celery
 
 
 def test_main_queue_dead_letters_to_the_dlx() -> None:

@@ -3,7 +3,7 @@ from typing import Protocol
 from sqlalchemy.exc import IntegrityError
 from flash.core.exceptions import UserNotFound, EmailAlreadyRegistered
 from flash.core.security import hash_password
-from flash.core.cache import CacheProtocol
+from flash.core.adapters.cache import CacheProtocol
 from flash.models.user_model import UserModel
 from flash.schemas.user_schema import UserCreate, UserUpdate
 

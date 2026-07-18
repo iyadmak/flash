@@ -1,7 +1,7 @@
 from typing import Annotated
 from fastapi import APIRouter, status, Depends
 from fastapi.security import OAuth2PasswordRequestForm
-from flash.core.rate_limit import rate_limit
+from flash.core.adapters.rate_limit import rate_limit
 from flash.api.deps import UserServiceDep, AuthServiceDep
 from flash.schemas.auth_schemas import (
     PasswordResetRequest,
