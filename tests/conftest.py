@@ -25,7 +25,6 @@ from flash.core.db import get_async_session
 from flash.core.config import get_settings
 from flash.core.cache import get_user_cache
 from flash.core.lock import get_lock_client
-from flash.core.task_queue import get_task_queue
 from flash.core.rate_limit import get_rate_limit_storage
 from flash.main import app
 
@@ -151,24 +150,3 @@ _test_lock_client = FakeLockClient()
 async def reset_lock_client() -> None:
     app.dependency_overrides[get_lock_client] = lambda: _test_lock_client
     _test_lock_client.clear()
-
-
-class FakeTaskQueue:
-    def __init__(self) -> None:
-        self.enqueued: list[tuple[str, tuple[Any, ...]]] = []
-
-    async def enqueue_job(self, function: str, *args: Any, **kwargs: Any) -> Any:
-        self.enqueued.append((function, args))
-        return None
-
-    def clear(self) -> None:
-        self.enqueued.clear()
-
-
-_test_task_queue = FakeTaskQueue()
-
-
-@pytest.fixture(autouse=True)
-async def reset_task_queue() -> None:
-    app.dependency_overrides[get_task_queue] = lambda: _test_task_queue
-    _test_task_queue.clear()

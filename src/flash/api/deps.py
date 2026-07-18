@@ -17,7 +17,6 @@ from flash.services import (
 from flash.core.db import get_async_session
 from flash.core.cache import CacheProtocol, get_user_cache
 from flash.core.lock import LockProtocol, get_lock_client
-from flash.core.task_queue import TasksQueueProtocol, get_task_queue
 from flash.repositories import (
     ItemRepository,
     OrderRepository,
@@ -31,7 +30,6 @@ SettingsDep = Annotated[Settings, Depends(get_settings)]
 DBSessionDep = Annotated[AsyncSession, Depends(get_async_session)]
 CacheDep = Annotated[CacheProtocol, Depends(get_user_cache)]
 LockClientDep = Annotated[LockProtocol, Depends(get_lock_client)]
-TaskQueueDep = Annotated[TasksQueueProtocol, Depends(get_task_queue)]
 
 
 # ------------------- Repository dependencies -------------------
@@ -71,9 +69,8 @@ def get_auth_service(
     user_repo: UserRepoDep,
     reset_token_repo: PasswordResetTokenRepoDep,
     cache: CacheDep,
-    task_queue: TaskQueueDep,
 ) -> AuthService:
-    return AuthService(user_repo, reset_token_repo, cache, task_queue)
+    return AuthService(user_repo, reset_token_repo, cache)
 
 
 def get_item_service(repo: ItemRepoDep) -> ItemService:

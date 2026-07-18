@@ -14,7 +14,7 @@ class Settings(BaseSettings):
     app_name: str = "Flash"
     debug: bool = False
     log_level: str = "INFO"
-    # ------- db config -------
+    # ------- pg, redis, rabbitmq config -------
     database_url: str
     db_pool_size: int = 5
     db_max_overflow: int = 10
@@ -23,6 +23,7 @@ class Settings(BaseSettings):
     db_pool_pre_ping: bool = True
     real_database_url: str
     redis_url: str = "redis://redis:6379"
+    rabbitmq_url: str = "amqp://guest:guest@rabbitmq:5672//"
     # ------- auth config -------
     secret_key: str
     jwt_algorithm: str = "HS256"

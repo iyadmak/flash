@@ -1,7 +1,8 @@
 """Unit tests for AuthService — no DB, no HTTP, just the service against fakes."""
 
+from collections.abc import Iterator
 from datetime import datetime, timedelta, timezone
-from typing import Any
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -69,15 +70,6 @@ class FakeCache:
             self._data.pop(name, None)
 
 
-class FakeTaskQueue:
-    def __init__(self) -> None:
-        self.enqueued: list[tuple[str, tuple[Any, ...]]] = []
-
-    async def enqueue_job(self, function: str, *args: Any, **kwargs: Any) -> Any:
-        self.enqueued.append((function, args))
-        return None
-
-
 @pytest.fixture
 def user_repo() -> FakeUserRepository:
     return FakeUserRepository()
@@ -94,18 +86,12 @@ def cache() -> FakeCache:
 
 
 @pytest.fixture
-def task_queue() -> FakeTaskQueue:
-    return FakeTaskQueue()
-
-
-@pytest.fixture
 def service(
     user_repo: FakeUserRepository,
     reset_token_repo: FakePasswordResetTokenRepository,
     cache: FakeCache,
-    task_queue: FakeTaskQueue,
 ) -> AuthService:
-    return AuthService(user_repo, reset_token_repo, cache, task_queue)
+    return AuthService(user_repo, reset_token_repo, cache)
 
 
 def _make_user(
@@ -229,6 +215,13 @@ class TestRevokeAllSessions:
 
 
 class TestPasswordReset:
+    @pytest.fixture(autouse=True)
+    def mock_send_password_reset_email(self) -> Iterator[MagicMock]:
+        with patch(
+            "flash.services.auth_service.send_password_reset_email_celery"
+        ) as mock_task:
+            yield mock_task
+
     async def test_full_round_trip_changes_the_password(
         self, service: AuthService, user_repo: FakeUserRepository
     ) -> None:
@@ -242,28 +235,28 @@ class TestPasswordReset:
         assert verify_password("new-password123", user.password)
         assert not verify_password("old-password", user.password)
 
-    async def test_requesting_reset_enqueues_the_email_task(
+    async def test_requesting_reset_queues_the_celery_task(
         self,
         service: AuthService,
         user_repo: FakeUserRepository,
-        task_queue: FakeTaskQueue,
+        mock_send_password_reset_email: MagicMock,
     ) -> None:
         user = user_repo.seed(_make_user())
 
         raw_token = await service.request_password_reset(user.email)
 
         assert raw_token is not None
-        assert task_queue.enqueued == [
-            ("send_password_reset_email", (user.email, raw_token))
-        ]
+        mock_send_password_reset_email.delay.assert_called_once_with(
+            user.email, raw_token
+        )
 
-    async def test_unknown_email_enqueues_no_task(
-        self, service: AuthService, task_queue: FakeTaskQueue
+    async def test_unknown_email_queues_no_task(
+        self, service: AuthService, mock_send_password_reset_email: MagicMock
     ) -> None:
         result = await service.request_password_reset("nobody@example.com")
 
         assert result is None
-        assert task_queue.enqueued == []
+        mock_send_password_reset_email.delay.assert_not_called()
 
     async def test_unknown_email_returns_none_and_creates_no_token(
         self, service: AuthService, reset_token_repo: FakePasswordResetTokenRepository

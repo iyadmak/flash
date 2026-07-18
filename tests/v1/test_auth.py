@@ -1,3 +1,5 @@
+from unittest.mock import patch
+
 from httpx import AsyncClient
 from flash.models.user_model import UserModel
 from tests.v1.conftest import UserFactory
@@ -93,9 +95,10 @@ class TestPasswordReset:
     async def test_request_for_existing_email_returns_202(
         self, client: AsyncClient, user: UserModel
     ) -> None:
-        response = await client.post(
-            f"{BASE}/password-reset/request", json={"email": user.email}
-        )
+        with patch("flash.services.auth_service.send_password_reset_email_celery"):
+            response = await client.post(
+                f"{BASE}/password-reset/request", json={"email": user.email}
+            )
         assert response.status_code == 202
 
     async def test_request_for_unknown_email_also_returns_202(

@@ -6,13 +6,13 @@ from datetime import datetime, timedelta, timezone
 
 from flash.core.exceptions import InvalidCredentials, InvalidToken
 from flash.core.cache import CacheProtocol
-from flash.core.task_queue import TasksQueueProtocol
 from flash.core.security import (
     create_access_token,
     hash_password,
     verify_password,
     decode_access_token,
 )
+from flash.celery_tasks import send_password_reset_email_celery
 from flash.models import UserModel, PasswordResetTokenModel
 from flash.schemas.user_schema import UserRead
 from flash.core.config import get_settings
@@ -51,12 +51,10 @@ class AuthService:
         user_repo: AuthRepositoryProtocol,
         reset_token_repo: PasswordResetRepositoryProtocol,
         cache: CacheProtocol,
-        task_queue: TasksQueueProtocol,
     ) -> None:
         self._user_repo = user_repo
         self._reset_token_repo = reset_token_repo
         self._cache = cache
-        self._task_queue = task_queue
 
     async def login(self, email: str, password: str) -> str:
         user = await self._user_repo.get_by_email(email)
@@ -111,9 +109,7 @@ class AuthService:
         )
         await self._reset_token_repo.create(reset_token)
         await self._reset_token_repo.commit()
-        await self._task_queue.enqueue_job(
-            "send_password_reset_email", email, raw_token
-        )
+        send_password_reset_email_celery.delay(email, raw_token)
         return raw_token
 
     async def reset_password(self, token: str, new_password: str) -> None:
