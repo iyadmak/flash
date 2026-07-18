@@ -53,6 +53,10 @@ ignore_missing_imports = true
 module = "celery.*"
 ignore_missing_imports = true
 
+[[tool.mypy.overrides]]
+module = "kombu.*"
+ignore_missing_imports = true
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"

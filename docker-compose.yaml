@@ -86,7 +86,7 @@ services:
   worker:
     build:
       context: .
-    command: celery -A flash.celery_app worker --loglevel=info
+    command: celery -A flash.celery_app worker --loglevel=info -Q celery
     env_file:
       - .env
     depends_on:
