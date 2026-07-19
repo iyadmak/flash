@@ -1,3 +1,4 @@
+import uuid
 from functools import lru_cache
 from typing import Any, Protocol
 from kombu import Connection, Exchange, Producer
@@ -23,6 +24,7 @@ class KombuEventPublisher:
                 routing_key=routing_key,
                 declare=[domain_events_exchange],
                 serializer="json",
+                message_id=str(uuid.uuid4()),
             )
 
 
