@@ -96,6 +96,14 @@ class TestCreateItem:
         )
         assert resp.status_code == 422
 
+    async def test_nonexistent_order_id_returns_404(
+        self, client: AsyncClient, auth_headers: dict[str, str]
+    ) -> None:
+        payload = {"name": "Ghost Item", "price": 5.0, "order_id": 9999}
+        resp = await client.post(f"{BASE}/", json=payload, headers=auth_headers)
+        assert resp.status_code == 404
+        assert resp.json()["error"] == "order_not_found"
+
 
 class TestUpdateItem:
     async def test_updates_name(

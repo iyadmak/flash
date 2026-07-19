@@ -57,6 +57,22 @@ class TestUpdate:
         )
         assert resp.status_code == 403
 
+    async def test_email_already_taken_returns_409(
+        self,
+        client: AsyncClient,
+        user: UserModel,
+        make_user: UserFactory,
+        auth_headers: dict[str, str],
+    ) -> None:
+        other = await make_user(email="taken@example.com")
+        resp = await client.put(
+            f"/api/v1/users/{user.id}",
+            json={"email": other.email},
+            headers=auth_headers,
+        )
+        assert resp.status_code == 409
+        assert resp.json()["error"] == "email_already_registered"
+
 
 class TestGetMe:
     async def test_returns_the_logged_in_user(

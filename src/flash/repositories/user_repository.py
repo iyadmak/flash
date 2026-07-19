@@ -20,3 +20,9 @@ class UserRepository(BaseRepository[UserModel]):
             return await super().create(instance)
         except UniqueConstraintViolation:
             raise EmailAlreadyRegistered() from None
+
+    async def commit(self) -> None:
+        try:
+            await super().commit()
+        except UniqueConstraintViolation:
+            raise EmailAlreadyRegistered() from None

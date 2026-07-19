@@ -59,6 +59,38 @@ class TestCreateOrder:
         )
         assert resp.status_code == 422
 
+    async def test_nonexistent_restaurant_id_returns_404(
+        self,
+        client: AsyncClient,
+        user: UserModel,
+        auth_headers: dict[str, str],
+    ) -> None:
+        payload = {
+            "user_id": user.id,
+            "restaurant_id": 9999,
+            "total_price": 42.50,
+            "status": "pending",
+        }
+        resp = await client.post(f"{BASE}/", json=payload, headers=auth_headers)
+        assert resp.status_code == 404
+        assert resp.json()["error"] == "restaurant_not_found"
+
+    async def test_nonexistent_user_id_returns_404(
+        self,
+        client: AsyncClient,
+        restaurant: RestaurantModel,
+        auth_headers: dict[str, str],
+    ) -> None:
+        payload = {
+            "user_id": 9999,
+            "restaurant_id": restaurant.id,
+            "total_price": 42.50,
+            "status": "pending",
+        }
+        resp = await client.post(f"{BASE}/", json=payload, headers=auth_headers)
+        assert resp.status_code == 404
+        assert resp.json()["error"] == "user_not_found"
+
 
 class TestGetOrder:
     async def test_returns_existing_order(

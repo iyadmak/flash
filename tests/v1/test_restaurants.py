@@ -4,6 +4,7 @@ from httpx import AsyncClient
 
 from flash.models.restaurant_model import RestaurantModel
 from flash.models.user_model import UserModel
+from .conftest import OrderFactory
 
 BASE = "/api/v1/restaurants"
 
@@ -76,6 +77,14 @@ class TestCreateRestaurant:
         )
         assert resp.status_code == 422
 
+    async def test_nonexistent_owner_id_returns_404(
+        self, client: AsyncClient, auth_headers: dict[str, str]
+    ) -> None:
+        payload = {"owner_id": 9999, "name": "Ghost Diner", "address": "nowhere"}
+        resp = await client.post(f"{BASE}/", json=payload, headers=auth_headers)
+        assert resp.status_code == 404
+        assert resp.json()["error"] == "user_not_found"
+
 
 class TestGetRestaurant:
     async def test_returns_existing_restaurant(
@@ -137,3 +146,15 @@ class TestDeleteRestaurant:
     ) -> None:
         resp = await client.delete(f"{BASE}/9999", headers=auth_headers)
         assert resp.status_code == 404
+
+    async def test_conflict_when_orders_reference_it(
+        self,
+        client: AsyncClient,
+        restaurant: RestaurantModel,
+        make_order: OrderFactory,
+        auth_headers: dict[str, str],
+    ) -> None:
+        await make_order(restaurant=restaurant)
+        resp = await client.delete(f"{BASE}/{restaurant.id}", headers=auth_headers)
+        assert resp.status_code == 409
+        assert resp.json()["error"] == "delete_conflict"

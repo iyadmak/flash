@@ -91,6 +91,12 @@ class DuplicateRequest(AppError):
     detail = "An identical request is already being processed."
 
 
+class DeleteConflict(AppError):
+    status_code = 409
+    error_code = "delete_conflict"
+    detail = "Cannot delete this resource because other records still depend on it."
+
+
 class ForeignKeyViolation(Exception):
     """Raised by BaseRepository.create() when an insert references a row
     that doesn't exist. Deliberately not an AppError: the repository layer
