@@ -3,6 +3,7 @@
 import asyncio
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from datetime import datetime, timezone
 from typing import Any
 
 import pytest
@@ -35,6 +36,7 @@ class FakeOrderRepository:
         await self.allow_create.wait()
         instance.id = self._next_id
         self._next_id += 1
+        instance.created_at = instance.updated_at = datetime.now(timezone.utc)
         self._orders[instance.id] = instance
         return instance
 
@@ -46,6 +48,14 @@ class FakeOrderRepository:
 
     async def refresh(self, instance: OrderModel) -> None:
         pass
+
+
+class FakeEventPublisher:
+    def __init__(self) -> None:
+        self.published: list[tuple[str, dict[str, Any]]] = []
+
+    def publish(self, routing_key: str, payload: dict[str, Any]) -> None:
+        self.published.append((routing_key, payload))
 
 
 class FakeLockClient:
@@ -81,8 +91,17 @@ def lock_client() -> FakeLockClient:
 
 
 @pytest.fixture
-def service(repo: FakeOrderRepository, lock_client: FakeLockClient) -> OrderService:
-    return OrderService(repo, lock_client)
+def event_publisher() -> FakeEventPublisher:
+    return FakeEventPublisher()
+
+
+@pytest.fixture
+def service(
+    repo: FakeOrderRepository,
+    lock_client: FakeLockClient,
+    event_publisher: FakeEventPublisher,
+) -> OrderService:
+    return OrderService(repo, lock_client, event_publisher)
 
 
 class TestCreate:
@@ -114,3 +133,46 @@ class TestCreate:
             ("order_lock:user:1:restaurant:2", 10, False),
             ("order_lock:user:1:restaurant:2", 10, False),
         ]
+
+    async def test_publishes_order_created_event(
+        self,
+        service: OrderService,
+        repo: FakeOrderRepository,
+        event_publisher: FakeEventPublisher,
+    ) -> None:
+        repo.allow_create.set()
+        data = OrderCreate(
+            user_id=1, restaurant_id=2, total_price=42.50, status="pending"
+        )
+
+        order = await service.create(data)
+
+        assert len(event_publisher.published) == 1
+        routing_key, payload = event_publisher.published[0]
+        assert routing_key == "order.created"
+        assert payload["id"] == order.id
+        assert payload["user_id"] == 1
+        assert payload["restaurant_id"] == 2
+        assert payload["status"] == "pending"
+
+    async def test_no_event_published_when_locked_out(
+        self,
+        service: OrderService,
+        repo: FakeOrderRepository,
+        event_publisher: FakeEventPublisher,
+    ) -> None:
+        data = OrderCreate(
+            user_id=1, restaurant_id=2, total_price=42.50, status="pending"
+        )
+
+        first_create = asyncio.create_task(service.create(data))
+        try:
+            await asyncio.wait_for(repo.create_started.wait(), timeout=1)
+
+            with pytest.raises(DuplicateRequest):
+                await service.create(data)
+        finally:
+            repo.allow_create.set()
+        await first_create
+
+        assert len(event_publisher.published) == 1

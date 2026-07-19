@@ -3,9 +3,10 @@ from typing import Protocol, Sequence
 from datetime import datetime
 from redis.exceptions import LockError
 from flash.models.order_model import OrderModel
-from flash.schemas.order_schema import OrderCreate, OrderUpdate
+from flash.schemas.order_schema import OrderCreate, OrderRead, OrderUpdate
 from flash.core.exceptions import OrderNotFound, DuplicateRequest
 from flash.core.adapters.lock import LockProtocol
+from flash.core.adapters.events import EventPublisherProtocol
 
 logger = structlog.get_logger()
 
@@ -20,9 +21,15 @@ class OrderRepoProtocol(Protocol):
 
 
 class OrderService:
-    def __init__(self, repo: OrderRepoProtocol, lock_client: LockProtocol) -> None:
+    def __init__(
+        self,
+        repo: OrderRepoProtocol,
+        lock_client: LockProtocol,
+        event_publisher: EventPublisherProtocol,
+    ) -> None:
         self._repo = repo
         self._lock_client = lock_client
+        self._event_publisher = event_publisher
 
     async def get(self, order_id: int) -> OrderModel:
         order = await self._repo.get(order_id)
@@ -45,6 +52,10 @@ class OrderService:
                 )
                 order = await self._repo.create(order)
                 await self._repo.commit()
+                self._event_publisher.publish(
+                    "order.created",
+                    OrderRead.model_validate(order).model_dump(mode="json"),
+                )
                 return order
         except LockError:
             raise DuplicateRequest() from None

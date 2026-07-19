@@ -17,6 +17,7 @@ from flash.services import (
 from flash.core.db import get_async_session
 from flash.core.adapters.cache import CacheProtocol, get_user_cache
 from flash.core.adapters.lock import LockProtocol, get_lock_client
+from flash.core.adapters.events import EventPublisherProtocol, get_event_publisher
 from flash.repositories import (
     ItemRepository,
     OrderRepository,
@@ -30,6 +31,7 @@ SettingsDep = Annotated[Settings, Depends(get_settings)]
 DBSessionDep = Annotated[AsyncSession, Depends(get_async_session)]
 CacheDep = Annotated[CacheProtocol, Depends(get_user_cache)]
 LockClientDep = Annotated[LockProtocol, Depends(get_lock_client)]
+EventPublisherDep = Annotated[EventPublisherProtocol, Depends(get_event_publisher)]
 
 
 # ------------------- Repository dependencies -------------------
@@ -85,8 +87,10 @@ def get_restaurant_service(repo: RestaurantRepoDep) -> RestaurantService:
     return RestaurantService(repo)
 
 
-def get_order_service(repo: OrderRepoDep, lock_client: LockClientDep) -> OrderService:
-    return OrderService(repo, lock_client)
+def get_order_service(
+    repo: OrderRepoDep, lock_client: LockClientDep, event_publisher: EventPublisherDep
+) -> OrderService:
+    return OrderService(repo, lock_client, event_publisher)
 
 
 AuthServiceDep = Annotated[AuthService, Depends(get_auth_service)]
