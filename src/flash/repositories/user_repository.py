@@ -2,6 +2,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from flash.repositories.base import BaseRepository
 from flash.models.user_model import UserModel
+from flash.core.exceptions import EmailAlreadyRegistered, UniqueConstraintViolation
 
 
 class UserRepository(BaseRepository[UserModel]):
@@ -13,3 +14,9 @@ class UserRepository(BaseRepository[UserModel]):
             select(UserModel).where(UserModel.email == email)
         )
         return result.scalar_one_or_none()
+
+    async def create(self, instance: UserModel) -> UserModel:
+        try:
+            return await super().create(instance)
+        except UniqueConstraintViolation:
+            raise EmailAlreadyRegistered() from None

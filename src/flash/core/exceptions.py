@@ -11,8 +11,8 @@ logger = structlog.get_logger()
 class AppError(Exception):
     """Base class for known, expected application errors.
 
-    Services raise these; they carry no HTTP knowledge beyond a status code
-    that the handler uses to build the response.
+    Raised by services and repositories; they carry no HTTP knowledge beyond
+    a status code that the handler uses to build the response.
     """
 
     status_code: int = 500
@@ -89,6 +89,34 @@ class DuplicateRequest(AppError):
     status_code = 409
     error_code = "duplicate_request"
     detail = "An identical request is already being processed."
+
+
+class ForeignKeyViolation(Exception):
+    """Raised by BaseRepository.create() when an insert references a row
+    that doesn't exist. Deliberately not an AppError: the repository layer
+    has no notion of "restaurants" or "users", only which constraint
+    Postgres rejected -- the service layer catches this and translates the
+    constraint name into the right domain-specific AppError. If a service
+    ever forgets to catch it, it falls through to the generic 500 handler,
+    which is the correct outcome for a missed translation.
+    """
+
+    def __init__(self, constraint_name: str | None) -> None:
+        self.constraint_name = constraint_name
+        super().__init__(f"Foreign key violation: {constraint_name}")
+
+
+class UniqueConstraintViolation(Exception):
+    """Raised by BaseRepository.create() when an insert collides with a
+    unique constraint or index (e.g. a duplicate email). Same reasoning as
+    ForeignKeyViolation: the repository layer only knows which constraint
+    Postgres rejected, not what that means for a given model -- the service
+    layer translates it into the right domain-specific AppError.
+    """
+
+    def __init__(self, constraint_name: str | None) -> None:
+        self.constraint_name = constraint_name
+        super().__init__(f"Unique constraint violation: {constraint_name}")
 
 
 def register_exception_handlers(app: FastAPI) -> None:

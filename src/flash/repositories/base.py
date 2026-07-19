@@ -1,7 +1,11 @@
 from collections.abc import Sequence
+from asyncpg.exceptions import ForeignKeyViolationError as PGForeignKeyViolationError
+from asyncpg.exceptions import UniqueViolationError as PGUniqueViolationError
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from flash.core.db import Base
+from flash.core.exceptions import ForeignKeyViolation, UniqueConstraintViolation
 
 
 class BaseRepository[ModelT: Base]:
@@ -29,7 +33,16 @@ class BaseRepository[ModelT: Base]:
 
     async def create(self, instance: ModelT) -> ModelT:
         self._session.add(instance)
-        await self._session.flush()
+        try:
+            await self._session.flush()
+        except IntegrityError as e:
+            assert e.orig is not None
+            cause = e.orig.__cause__
+            if isinstance(cause, PGForeignKeyViolationError):
+                raise ForeignKeyViolation(cause.constraint_name) from e
+            if isinstance(cause, PGUniqueViolationError):
+                raise UniqueConstraintViolation(cause.constraint_name) from e
+            raise
         await self._session.refresh(instance)
         return instance
 

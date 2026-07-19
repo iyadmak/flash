@@ -49,7 +49,7 @@ plugins = ["pydantic.mypy"]
 exclude = "^alembic/"
 
 [[tool.mypy.overrides]]
-module = ["testcontainers.*", "celery.*", "kombu.*"]
+module = ["testcontainers.*", "celery.*", "kombu.*", "asyncpg.*"]
 ignore_missing_imports = true
 
 [build-system]
