@@ -6,6 +6,7 @@ from kombu import Connection, Exchange, Producer
 from flash.core.config import get_settings
 
 domain_events_exchange = Exchange("flash.events", type="topic", durable=True)
+domain_events_dlx = Exchange("flash.domain_events.dlx", type="direct", durable=True)
 
 
 class EventPublisherProtocol(Protocol):
