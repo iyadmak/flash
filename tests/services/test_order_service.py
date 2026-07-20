@@ -58,6 +58,14 @@ class FakeEventPublisher:
         self.published.append((routing_key, payload))
 
 
+class FakeEventStreamPublisher:
+    def __init__(self) -> None:
+        self.published: list[tuple[str, str, dict[str, Any]]] = []
+
+    async def publish(self, topic: str, key: str, payload: dict[str, Any]) -> None:
+        self.published.append((topic, key, payload))
+
+
 class FakeLockClient:
     def __init__(self) -> None:
         self._locked: set[str] = set()
@@ -96,12 +104,18 @@ def event_publisher() -> FakeEventPublisher:
 
 
 @pytest.fixture
+def event_stream_publisher() -> FakeEventStreamPublisher:
+    return FakeEventStreamPublisher()
+
+
+@pytest.fixture
 def service(
     repo: FakeOrderRepository,
     lock_client: FakeLockClient,
     event_publisher: FakeEventPublisher,
+    event_stream_publisher: FakeEventStreamPublisher,
 ) -> OrderService:
-    return OrderService(repo, lock_client, event_publisher)
+    return OrderService(repo, lock_client, event_publisher, event_stream_publisher)
 
 
 class TestCreate:
@@ -139,6 +153,7 @@ class TestCreate:
         service: OrderService,
         repo: FakeOrderRepository,
         event_publisher: FakeEventPublisher,
+        event_stream_publisher: FakeEventStreamPublisher,
     ) -> None:
         repo.allow_create.set()
         data = OrderCreate(
@@ -159,11 +174,18 @@ class TestCreate:
         assert payload["data"]["restaurant_id"] == 2
         assert payload["data"]["status"] == "pending"
 
+        assert len(event_stream_publisher.published) == 1
+        topic, key, stream_payload = event_stream_publisher.published[0]
+        assert topic == "order.created"
+        assert key == str(order.id)
+        assert stream_payload == payload
+
     async def test_no_event_published_when_locked_out(
         self,
         service: OrderService,
         repo: FakeOrderRepository,
         event_publisher: FakeEventPublisher,
+        event_stream_publisher: FakeEventStreamPublisher,
     ) -> None:
         data = OrderCreate(
             user_id=1, restaurant_id=2, total_price=42.50, status="pending"
@@ -180,3 +202,4 @@ class TestCreate:
         await first_create
 
         assert len(event_publisher.published) == 1
+        assert len(event_stream_publisher.published) == 1

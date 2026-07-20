@@ -14,7 +14,7 @@ class Settings(BaseSettings):
     app_name: str = "Flash"
     debug: bool = False
     log_level: str = "INFO"
-    # ------- pg, redis, rabbitmq config -------
+    # ------- infrastructure config -------
     database_url: str
     db_pool_size: int = 5
     db_max_overflow: int = 10
@@ -24,6 +24,7 @@ class Settings(BaseSettings):
     real_database_url: str
     redis_url: str
     rabbitmq_url: str
+    kafka_bootstrap_servers: str
     # ------- auth config -------
     secret_key: str
     jwt_algorithm: str = "HS256"

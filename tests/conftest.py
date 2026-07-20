@@ -26,6 +26,7 @@ from flash.core.config import get_settings
 from flash.core.adapters.cache import get_user_cache
 from flash.core.adapters.lock import get_lock_client
 from flash.core.adapters.events import get_event_publisher
+from flash.api.deps import get_event_stream_publisher
 from flash.core.adapters.rate_limit import get_rate_limit_storage
 from flash.main import app
 
@@ -171,3 +172,25 @@ _test_event_publisher = FakeEventPublisher()
 async def reset_event_publisher() -> None:
     app.dependency_overrides[get_event_publisher] = lambda: _test_event_publisher
     _test_event_publisher.clear()
+
+
+class FakeEventStreamPublisher:
+    def __init__(self) -> None:
+        self.published: list[tuple[str, str, dict[str, Any]]] = []
+
+    async def publish(self, topic: str, key: str, payload: dict[str, Any]) -> None:
+        self.published.append((topic, key, payload))
+
+    def clear(self) -> None:
+        self.published.clear()
+
+
+_test_event_stream_publisher = FakeEventStreamPublisher()
+
+
+@pytest.fixture(autouse=True)
+async def reset_event_stream_publisher() -> None:
+    app.dependency_overrides[get_event_stream_publisher] = lambda: (
+        _test_event_stream_publisher
+    )
+    _test_event_stream_publisher.clear()

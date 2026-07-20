@@ -15,6 +15,12 @@ services:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
+      kafka-1:
+        condition: service_started
+      kafka-2:
+        condition: service_started
+      kafka-3:
+        condition: service_started
 
   db:
     image: postgres:17

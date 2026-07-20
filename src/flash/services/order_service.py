@@ -12,6 +12,7 @@ from flash.schemas.order_schema import (
 from flash.core.exceptions import OrderNotFound, DuplicateRequest
 from flash.core.adapters.lock import LockProtocol
 from flash.core.adapters.events import EventPublisherProtocol
+from flash.core.adapters.kafka_events import KafkaEventStreamPublisherProtocol
 
 logger = structlog.get_logger()
 
@@ -31,10 +32,12 @@ class OrderService:
         repo: OrderRepoProtocol,
         lock_client: LockProtocol,
         event_publisher: EventPublisherProtocol,
+        event_stream_publisher: KafkaEventStreamPublisherProtocol,
     ) -> None:
         self._repo = repo
         self._lock_client = lock_client
         self._event_publisher = event_publisher
+        self._event_stream_publisher = event_stream_publisher
 
     async def get(self, order_id: int) -> OrderModel:
         order = await self._repo.get(order_id)
@@ -58,8 +61,10 @@ class OrderService:
                 order = await self._repo.create(order)
                 await self._repo.commit()
                 event = OrderCreatedEvent(data=OrderCreatedData.model_validate(order))
-                self._event_publisher.publish(
-                    "order.created", event.model_dump(mode="json")
+                payload = event.model_dump(mode="json")
+                self._event_publisher.publish("order.created", payload)
+                await self._event_stream_publisher.publish(
+                    topic="order.created", key=str(order.id), payload=payload
                 )
                 return order
         except LockError:

@@ -4,6 +4,7 @@ import structlog
 from contextlib import asynccontextmanager
 from collections.abc import AsyncIterator
 from fastapi import FastAPI
+from aiokafka import AIOKafkaProducer
 
 from flash.api.routes import health
 from flash.api.v1.router import router as v1_router
@@ -25,7 +26,11 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
         debug=settings.debug,
         log_level=settings.log_level,
     )
+    producer = AIOKafkaProducer(bootstrap_servers=settings.kafka_bootstrap_servers)
+    await producer.start()
+    _app.state.kafka_producer = producer
     yield
+    await producer.stop()
     logger.info("Shutting down...")
 
 

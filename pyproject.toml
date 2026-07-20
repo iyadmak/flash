@@ -5,6 +5,7 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+    "aiokafka>=0.14.0",
     "alembic>=1.18.4",
     "argon2-cffi>=25.1.0",
     # "arq>=0.25.0",  # evaluated as a lighter async-native alternative to
@@ -49,7 +50,7 @@ plugins = ["pydantic.mypy"]
 exclude = "^alembic/"
 
 [[tool.mypy.overrides]]
-module = ["testcontainers.*", "celery.*", "kombu.*", "asyncpg.*"]
+module = ["testcontainers.*", "celery.*", "kombu.*", "asyncpg.*", "aiokafka.*"]
 ignore_missing_imports = true
 
 [build-system]
