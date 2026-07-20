@@ -3,7 +3,12 @@ from typing import Protocol, Sequence
 from datetime import datetime
 from redis.exceptions import LockError
 from flash.models.order_model import OrderModel
-from flash.schemas.order_schema import OrderCreate, OrderRead, OrderUpdate
+from flash.schemas.order_schema import (
+    OrderCreate,
+    OrderUpdate,
+    OrderCreatedData,
+    OrderCreatedEvent,
+)
 from flash.core.exceptions import OrderNotFound, DuplicateRequest
 from flash.core.adapters.lock import LockProtocol
 from flash.core.adapters.events import EventPublisherProtocol
@@ -52,9 +57,9 @@ class OrderService:
                 )
                 order = await self._repo.create(order)
                 await self._repo.commit()
+                event = OrderCreatedEvent(data=OrderCreatedData.model_validate(order))
                 self._event_publisher.publish(
-                    "order.created",
-                    OrderRead.model_validate(order).model_dump(mode="json"),
+                    "order.created", event.model_dump(mode="json")
                 )
                 return order
         except LockError:

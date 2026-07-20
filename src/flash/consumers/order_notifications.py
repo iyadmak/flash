@@ -5,6 +5,7 @@ from typing import Any
 from kombu import Connection, Queue
 from kombu.mixins import ConsumerMixin
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+from flash.schemas.order_schema import OrderCreatedEvent
 from flash.core.adapters.events import domain_events_exchange, domain_events_dlx
 from flash.core.config import get_settings
 from flash.core.consumer_db import consumer_session_maker
@@ -74,6 +75,7 @@ class OrderNotificationConsumer(ConsumerMixin):  # type: ignore[misc]
                 return
 
     async def handle(self, event_id: str | None, body: dict[str, Any]) -> None:
+        event = OrderCreatedEvent.model_validate(body)
         async with self._session_maker() as session:
             repo = ProcessedEventRepository(session)
             try:
@@ -85,9 +87,9 @@ class OrderNotificationConsumer(ConsumerMixin):  # type: ignore[misc]
                 return
             logger.info(
                 "restaurant_notified",
-                order_id=body.get("id"),
-                restaurant_id=body.get("restaurant_id"),
-                total_price=body.get("total_price"),
+                order_id=event.data.id,
+                restaurant_id=event.data.restaurant_id,
+                total_price=event.data.total_price,
             )
             await repo.commit()
 

@@ -150,10 +150,14 @@ class TestCreate:
         assert len(event_publisher.published) == 1
         routing_key, payload = event_publisher.published[0]
         assert routing_key == "order.created"
-        assert payload["id"] == order.id
-        assert payload["user_id"] == 1
-        assert payload["restaurant_id"] == 2
-        assert payload["status"] == "pending"
+        assert payload["event_type"] == "order.created"
+        assert payload["event_version"] == 1
+        assert "event_id" in payload
+        assert "occurred_at" in payload
+        assert payload["data"]["id"] == order.id
+        assert payload["data"]["user_id"] == 1
+        assert payload["data"]["restaurant_id"] == 2
+        assert payload["data"]["status"] == "pending"
 
     async def test_no_event_published_when_locked_out(
         self,

@@ -1,10 +1,13 @@
-"""Unit tests for OrderNotificationConsumer's idempotency guard and
-poison-message handling (bounded retries, then dead-letter)."""
+"""Unit tests for OrderNotificationConsumer's idempotency guard,
+schema validation, and poison-message handling (bounded retries, then
+dead-letter)."""
 
+import uuid
 from collections.abc import AsyncIterator
 from types import SimpleNamespace
 from typing import Any
 
+import pydantic
 import pytest
 import pytest_asyncio
 from sqlalchemy import text
@@ -14,7 +17,26 @@ from structlog.testing import capture_logs
 import flash.consumers.order_notifications as order_notifications
 from flash.consumers.order_notifications import OrderNotificationConsumer
 
-ORDER_BODY = {"id": 1, "restaurant_id": 2, "total_price": 42.50}
+
+def make_order_created_body(order_id: int = 1) -> dict[str, Any]:
+    return {
+        "event_id": str(uuid.uuid4()),
+        "event_type": "order.created",
+        "event_version": 1,
+        "occurred_at": "2026-07-20T16:00:00Z",
+        "data": {
+            "id": order_id,
+            "user_id": 1,
+            "restaurant_id": 2,
+            "total_price": 42.50,
+            "status": "pending",
+            "created_at": "2026-07-20T16:00:00Z",
+            "updated_at": "2026-07-20T16:00:00Z",
+        },
+    }
+
+
+ORDER_BODY = make_order_created_body()
 
 
 class FakeMessage:
@@ -60,6 +82,20 @@ async def test_first_delivery_processes_and_records_event(
     events = [log["event"] for log in logs]
     assert "restaurant_notified" in events
     assert "duplicate_event_skipped" not in events
+
+    notified = next(log for log in logs if log["event"] == "restaurant_notified")
+    assert notified["order_id"] == ORDER_BODY["data"]["id"]
+    assert notified["restaurant_id"] == ORDER_BODY["data"]["restaurant_id"]
+    assert notified["total_price"] == ORDER_BODY["data"]["total_price"]
+
+
+async def test_handle_raises_on_malformed_event(
+    consumer: OrderNotificationConsumer,
+) -> None:
+    malformed_body = {"not": "a valid order.created envelope"}
+
+    with pytest.raises(pydantic.ValidationError):
+        await consumer.handle("event-1", malformed_body)
 
 
 async def test_redelivered_event_id_is_skipped(

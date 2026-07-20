@@ -1,0 +1,80 @@
+{
+  "$defs": {
+    "OrderCreatedData": {
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "integer"
+        },
+        "user_id": {
+          "title": "User Id",
+          "type": "integer"
+        },
+        "restaurant_id": {
+          "title": "Restaurant Id",
+          "type": "integer"
+        },
+        "total_price": {
+          "title": "Total Price",
+          "type": "number"
+        },
+        "status": {
+          "title": "Status",
+          "type": "string"
+        },
+        "created_at": {
+          "format": "date-time",
+          "title": "Created At",
+          "type": "string"
+        },
+        "updated_at": {
+          "format": "date-time",
+          "title": "Updated At",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "user_id",
+        "restaurant_id",
+        "total_price",
+        "status",
+        "created_at",
+        "updated_at"
+      ],
+      "title": "OrderCreatedData",
+      "type": "object"
+    }
+  },
+  "properties": {
+    "event_id": {
+      "format": "uuid",
+      "title": "Event Id",
+      "type": "string"
+    },
+    "event_type": {
+      "const": "order.created",
+      "default": "order.created",
+      "title": "Event Type",
+      "type": "string"
+    },
+    "event_version": {
+      "default": 1,
+      "title": "Event Version",
+      "type": "integer"
+    },
+    "occurred_at": {
+      "format": "date-time",
+      "title": "Occurred At",
+      "type": "string"
+    },
+    "data": {
+      "$ref": "#/$defs/OrderCreatedData"
+    }
+  },
+  "required": [
+    "data"
+  ],
+  "title": "OrderCreatedEvent",
+  "type": "object"
+}
