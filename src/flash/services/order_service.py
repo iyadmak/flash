@@ -63,11 +63,13 @@ class OrderService:
                 await self._repo.commit()
                 event = OrderCreatedEvent(data=OrderCreatedData.model_validate(order))
                 payload = event.model_dump(mode="json")
-                await asyncio.to_thread(
-                    self._event_publisher.publish, "order.created", payload
-                )
-                await self._event_stream_publisher.publish(
-                    topic="order.created", key=str(order.id), payload=payload
+                await asyncio.gather(
+                    asyncio.to_thread(
+                        self._event_publisher.publish, "order.created", payload
+                    ),
+                    self._event_stream_publisher.publish(
+                        topic="order.created", key=str(order.id), payload=payload
+                    ),
                 )
                 return order
         except LockError:

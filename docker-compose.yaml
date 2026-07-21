@@ -50,7 +50,7 @@ services:
       AUTH_TYPE: scram-sha-256
       POOL_MODE: transaction
       MAX_CLIENT_CONN: "100"
-      DEFAULT_POOL_SIZE: "5"
+      DEFAULT_POOL_SIZE: "20"
       MAX_PREPARED_STATEMENTS: "200"
       ADMIN_USERS: ${DATABASE_USER}
     ports:
