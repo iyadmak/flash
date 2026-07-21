@@ -181,6 +181,22 @@ services:
     volumes:
       - kafka3_data:/tmp/kraft-combined-logs
 
+  analytics_consumer:
+    build:
+      context: .
+    command: python -m flash.consumers.analytics
+    env_file:
+      - .env
+    depends_on:
+      kafka-1:
+        condition: service_started
+      kafka-2:
+        condition: service_started
+      kafka-3:
+        condition: service_started
+      redis:
+        condition: service_healthy
+
 volumes:
   postgres_data:
   kafka1_data:
