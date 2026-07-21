@@ -126,6 +126,7 @@ services:
     command: python -m flash.consumers.order_notifications
     env_file:
       - .env
+    restart: on-failure
     depends_on:
       rabbitmq:
         condition: service_healthy
@@ -202,6 +203,7 @@ services:
     command: python -m flash.consumers.analytics
     env_file:
       - .env
+    restart: on-failure
     depends_on:
       kafka-1:
         condition: service_started
@@ -211,6 +213,8 @@ services:
         condition: service_started
       redis:
         condition: service_healthy
+      mongodb:
+        condition: service_healthy
 
   analytics_lag_monitor:
     build:
@@ -218,6 +222,7 @@ services:
     command: python -m flash.consumers.analytics_lag_monitor
     env_file:
       - .env
+    restart: on-failure
     depends_on:
       kafka-1:
         condition: service_started

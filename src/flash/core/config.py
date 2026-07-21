@@ -22,6 +22,7 @@ class Settings(BaseSettings):
     db_pool_recycle: int = 1800
     db_pool_pre_ping: bool = True
     real_database_url: str
+    mongodb_url: str
     redis_url: str
     rabbitmq_url: str
     kafka_bootstrap_servers: str

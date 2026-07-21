@@ -1,7 +1,8 @@
 import uuid
 from functools import lru_cache
 from typing import Any, Protocol
-from kombu import Connection, Exchange, Producer
+from kombu import Connection, Exchange
+from kombu.pools import producers
 
 from flash.core.config import get_settings
 
@@ -18,7 +19,12 @@ class KombuEventPublisher:
         self._connection = connection
 
     def publish(self, routing_key: str, payload: dict[str, Any]) -> None:
-        with Producer(self._connection) as producer:
+        # Pooled producer/connection, not a single shared Producer(self._connection):
+        # this is called from multiple threads at once (via asyncio.to_thread in
+        # OrderService.create), and kombu Connection/Channel objects aren't safe for
+        # concurrent multi-threaded use. The pool hands each caller its own
+        # connection instead of everyone contending on one.
+        with producers[self._connection].acquire(block=True) as producer:
             producer.publish(
                 payload,
                 exchange=domain_events_exchange,
