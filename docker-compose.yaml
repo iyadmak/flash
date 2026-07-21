@@ -89,6 +89,21 @@ services:
       retries: 5
       start_period: 30s
 
+  mongodb:
+    image: mongo:8
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_USER}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASSWORD}
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+    healthcheck:
+      test: [ "CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping')" ]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
   worker:
     build:
       context: .
@@ -197,8 +212,23 @@ services:
       redis:
         condition: service_healthy
 
+  analytics_lag_monitor:
+    build:
+      context: .
+    command: python -m flash.consumers.analytics_lag_monitor
+    env_file:
+      - .env
+    depends_on:
+      kafka-1:
+        condition: service_started
+      kafka-2:
+        condition: service_started
+      kafka-3:
+        condition: service_started
+
 volumes:
   postgres_data:
   kafka1_data:
   kafka2_data:
   kafka3_data:
+  mongodb_data:
