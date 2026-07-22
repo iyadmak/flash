@@ -8,14 +8,17 @@ from pymongo.asynchronous.collection import AsyncCollection
 
 from flash.core.db import get_async_session
 from flash.core.config import Settings, get_settings
-from flash.core.adapters.cache import CacheProtocol, get_user_cache
-from flash.core.adapters.lock import LockProtocol, get_lock_client
-from flash.core.adapters.events import EventPublisherProtocol, get_event_publisher
-from flash.core.adapters.kafka_events import (
+from flash.core.adapters import (
+    CacheProtocol,
+    LockProtocol,
+    EventPublisherProtocol,
     KafkaEventStreamPublisher,
     KafkaEventStreamPublisherProtocol,
+    get_lock_client,
+    get_event_publisher,
+    get_user_cache,
+    get_daily_reports_collection,
 )
-from flash.core.adapters.mongodb import get_daily_reports_collection
 from flash.schemas.user_schema import UserRead
 from flash.services import (
     UserService,
