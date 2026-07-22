@@ -1,9 +1,10 @@
 """API Dependencies"""
 
-from typing import Annotated
+from typing import Annotated, Any
 from fastapi import Depends, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi.security import OAuth2PasswordBearer
+from pymongo.asynchronous.collection import AsyncCollection
 
 from flash.core.db import get_async_session
 from flash.core.config import Settings, get_settings
@@ -14,6 +15,7 @@ from flash.core.adapters.kafka_events import (
     KafkaEventStreamPublisher,
     KafkaEventStreamPublisherProtocol,
 )
+from flash.core.adapters.mongodb import get_daily_reports_collection
 from flash.schemas.user_schema import UserRead
 from flash.services import (
     UserService,
@@ -44,6 +46,9 @@ LockClientDep = Annotated[LockProtocol, Depends(get_lock_client)]
 EventPublisherDep = Annotated[EventPublisherProtocol, Depends(get_event_publisher)]
 EventStreamPublisherDep = Annotated[
     KafkaEventStreamPublisherProtocol, Depends(get_event_stream_publisher)
+]
+DailyReportsCollectionDep = Annotated[
+    AsyncCollection[dict[str, Any]], Depends(get_daily_reports_collection)
 ]
 
 
@@ -117,9 +122,9 @@ OrderServiceDep = Annotated[OrderService, Depends(get_order_service)]
 
 
 def get_analytics_service(
-    cache: CacheDep, restaurant_service: RestaurantServiceDep
+    daily_reports: DailyReportsCollectionDep, restaurant_service: RestaurantServiceDep
 ) -> AnalyticsService:
-    return AnalyticsService(cache, restaurant_service)
+    return AnalyticsService(daily_reports, restaurant_service)
 
 
 AnalyticsServiceDep = Annotated[AnalyticsService, Depends(get_analytics_service)]

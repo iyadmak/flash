@@ -1,6 +1,5 @@
 import asyncio
 import structlog
-import redis.asyncio as redis
 from collections.abc import Awaitable
 from typing import Protocol, Any
 from aiokafka import AIOKafkaConsumer
@@ -12,11 +11,6 @@ logger = structlog.get_logger()
 
 CONSUMER_GROUP = "flash-analytics"
 TOPIC = "order.created"
-
-
-class MetricsRedisProtocol(Protocol):
-    def incr(self, name: str) -> Awaitable[int]: ...
-    def incrby(self, name: str, amount: int) -> Awaitable[int]: ...
 
 
 class ReportsCollectionProtocol(Protocol):
@@ -31,29 +25,16 @@ class DailyReportCollectionProtocol(Protocol):
     ) -> Awaitable[Any]: ...
 
 
-def _order_count_key(restaurant_id: int) -> str:
-    return f"metrics:restaurant:{restaurant_id}:order_count"
-
-
-def _revenue_cents_key(restaurant_id: int) -> str:
-    return f"metrics:restaurant:{restaurant_id}:revenue_cents"
-
-
 def _daily_report_id(restaurant_id: int, report_date: str) -> str:
     return f"{restaurant_id}:{report_date}"
 
 
 async def handle(
-    redis_client: MetricsRedisProtocol,
     reports_collection: ReportsCollectionProtocol,
     daily_reports_collection: DailyReportCollectionProtocol,
     event: OrderCreatedEvent,
 ) -> None:
     revenue_cents = round(event.data.total_price * 100)
-    await redis_client.incr(_order_count_key(event.data.restaurant_id))
-    await redis_client.incrby(
-        (_revenue_cents_key(event.data.restaurant_id)), revenue_cents
-    )
     report = event.model_dump(mode="json")
     report["_id"] = report["event_id"]
     result = await reports_collection.replace_one(
@@ -77,7 +58,6 @@ async def handle(
 
 async def main() -> None:
     settings = get_settings()
-    redis_client = redis.Redis.from_url(settings.redis_url)
     mongodb_client = get_mongo_client()
     reports_collection = mongodb_client.get_database(ANALYTICS_DB_NAME).get_collection(
         "reports"
@@ -97,9 +77,7 @@ async def main() -> None:
         async for message in consumer:
             try:
                 event = OrderCreatedEvent.model_validate_json(message.value)
-                await handle(
-                    redis_client, reports_collection, daily_reports_collection, event
-                )
+                await handle(reports_collection, daily_reports_collection, event)
             except Exception:
                 logger.error(
                     "order_metrics_update_failed",
