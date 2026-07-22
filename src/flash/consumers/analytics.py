@@ -25,6 +25,12 @@ class ReportsCollectionProtocol(Protocol):
     ) -> Awaitable[Any]: ...
 
 
+class DailyReportCollectionProtocol(Protocol):
+    def update_one(
+        self, filter: dict[str, Any], update: dict[str, Any], upsert: bool = False
+    ) -> Awaitable[Any]: ...
+
+
 def _order_count_key(restaurant_id: int) -> str:
     return f"metrics:restaurant:{restaurant_id}:order_count"
 
@@ -33,9 +39,14 @@ def _revenue_cents_key(restaurant_id: int) -> str:
     return f"metrics:restaurant:{restaurant_id}:revenue_cents"
 
 
+def _daily_report_id(restaurant_id: int, report_date: str) -> str:
+    return f"{restaurant_id}:{report_date}"
+
+
 async def handle(
     redis_client: MetricsRedisProtocol,
     reports_collection: ReportsCollectionProtocol,
+    daily_reports_collection: DailyReportCollectionProtocol,
     event: OrderCreatedEvent,
 ) -> None:
     revenue_cents = round(event.data.total_price * 100)
@@ -45,7 +56,23 @@ async def handle(
     )
     report = event.model_dump(mode="json")
     report["_id"] = report["event_id"]
-    await reports_collection.replace_one({"_id": report["_id"]}, report, upsert=True)
+    result = await reports_collection.replace_one(
+        {"_id": report["_id"]}, report, upsert=True
+    )
+
+    if result.upserted_id is not None:
+        report_date = event.data.created_at.date().isoformat()
+        await daily_reports_collection.update_one(
+            {"_id": _daily_report_id(event.data.restaurant_id, report_date)},
+            {
+                "$inc": {"order_count": 1, "revenue_cents": revenue_cents},
+                "$setOnInsert": {
+                    "restaurant_id": event.data.restaurant_id,
+                    "report_date": report_date,
+                },
+            },
+            upsert=True,
+        )
 
 
 async def main() -> None:
@@ -55,6 +82,9 @@ async def main() -> None:
     reports_collection = mongodb_client.get_database(ANALYTICS_DB_NAME).get_collection(
         "reports"
     )
+    daily_reports_collection = mongodb_client.get_database(
+        ANALYTICS_DB_NAME
+    ).get_collection("restaurant_daily_reports")
     consumer = AIOKafkaConsumer(
         TOPIC,
         bootstrap_servers=settings.kafka_bootstrap_servers,
@@ -67,7 +97,9 @@ async def main() -> None:
         async for message in consumer:
             try:
                 event = OrderCreatedEvent.model_validate_json(message.value)
-                await handle(redis_client, reports_collection, event)
+                await handle(
+                    redis_client, reports_collection, daily_reports_collection, event
+                )
             except Exception:
                 logger.error(
                     "order_metrics_update_failed",

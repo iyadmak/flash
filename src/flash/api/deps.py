@@ -21,6 +21,7 @@ from flash.services import (
     OrderService,
     ItemService,
     AuthService,
+    AnalyticsService,
 )
 from flash.repositories import (
     ItemRepository,
@@ -113,6 +114,15 @@ ItemServiceDep = Annotated[ItemService, Depends(get_item_service)]
 UserServiceDep = Annotated[UserService, Depends(get_user_service)]
 RestaurantServiceDep = Annotated[RestaurantService, Depends(get_restaurant_service)]
 OrderServiceDep = Annotated[OrderService, Depends(get_order_service)]
+
+
+def get_analytics_service(
+    cache: CacheDep, restaurant_service: RestaurantServiceDep
+) -> AnalyticsService:
+    return AnalyticsService(cache, restaurant_service)
+
+
+AnalyticsServiceDep = Annotated[AnalyticsService, Depends(get_analytics_service)]
 
 # ------------------- auth dependencies -------------------
 
