@@ -35,6 +35,7 @@ from flash.repositories import (
     UserRepository,
     PasswordResetTokenRepository,
 )
+from flash.core.exceptions import Forbidden
 
 
 # ------------------- General dependencies -------------------
@@ -144,3 +145,10 @@ async def get_current_user(
 
 
 CurrentUserDep = Annotated[UserRead, Depends(get_current_user)]
+
+
+async def require_self(user_id: int, current_user: CurrentUserDep) -> None:
+    """Authorization guard: the token subject must own the {user_id} in the path."""
+
+    if current_user.id != user_id:
+        raise Forbidden()

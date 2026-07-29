@@ -78,6 +78,28 @@ class TestGet:
         fetched = await service.get(created.id)
         assert fetched is created
 
+    async def test_returns_inactive_user(
+        self, service: UserService, repo: FakeUserRepository
+    ) -> None:
+        """The read path deliberately does not filter on is_active.
+
+        Deactivating a user locks them out of authentication -- AuthService
+        rejects an inactive subject -- it does not erase them from reads.
+        Previously asserted over HTTP, but self-only authorization makes that
+        unreachable: an inactive user can no longer get a usable token, and
+        nobody else may read their record.
+        """
+        seeded = repo.seed(
+            UserModel(
+                username="iyad",
+                email="iyad@example.com",
+                password="hashed",
+                is_active=False,
+            )
+        )
+        fetched = await service.get(seeded.id)
+        assert fetched.is_active is False
+
 
 class TestCreate:
     async def test_hashes_the_password(self, service: UserService) -> None:

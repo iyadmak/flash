@@ -18,13 +18,30 @@ async def test_create_and_get_user(async_session: AsyncSession) -> None:
     assert fetched.email == "test@example.com"
 
 
-async def test_get_returns_inactive_user(
-    client: AsyncClient, make_user: UserFactory
-) -> None:
-    inactive = await make_user(is_active=False)
-    resp = await client.get(f"/api/v1/users/{inactive.id}")
-    assert resp.status_code == 200
-    assert resp.json()["is_active"] is False
+class TestGet:
+    async def test_returns_own_record(
+        self, client: AsyncClient, user: UserModel, auth_headers: dict[str, str]
+    ) -> None:
+        resp = await client.get(f"/api/v1/users/{user.id}", headers=auth_headers)
+        assert resp.status_code == 200
+        assert resp.json()["id"] == user.id
+
+    async def test_requires_authentication(
+        self, client: AsyncClient, user: UserModel
+    ) -> None:
+        resp = await client.get(f"/api/v1/users/{user.id}")
+        assert resp.status_code == 401
+
+    async def test_cannot_read_another_user(
+        self,
+        client: AsyncClient,
+        user: UserModel,
+        make_user: UserFactory,
+        auth_headers: dict[str, str],
+    ) -> None:
+        other = await make_user()
+        resp = await client.get(f"/api/v1/users/{other.id}", headers=auth_headers)
+        assert resp.status_code == 403
 
 
 class TestUpdate:
