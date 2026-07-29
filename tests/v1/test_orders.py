@@ -3,7 +3,14 @@
 Orders are private to the user who placed them. `auth_headers` authenticates
 as the `user` fixture, so `make_order()` with no arguments builds an order
 owned by somebody else -- that is the cross-user case throughout.
+
+Money crosses the wire as a JSON string ("42.50"), not a number: pydantic
+serializes Decimal that way, because a JSON float cannot hold every 2-decimal
+amount exactly. Assertions parse it back to Decimal rather than comparing to a
+float literal, so they check the value and not the representation.
 """
+
+from decimal import Decimal
 
 from httpx import AsyncClient
 
@@ -65,7 +72,7 @@ class TestCreateOrder:
         # user_id is never sent -- it comes from the authenticated subject
         assert data["user_id"] == user.id
         assert data["restaurant_id"] == restaurant.id
-        assert data["total_price"] == 42.50
+        assert Decimal(data["total_price"]) == Decimal("42.50")
         assert data["status"] == "pending"
         assert "id" in data
         assert "created_at" in data
@@ -123,7 +130,7 @@ class TestGetOrder:
         assert resp.status_code == 200
         data = resp.json()
         assert data["id"] == order.id
-        assert data["total_price"] == order.total_price
+        assert Decimal(data["total_price"]) == order.total_price
 
     async def test_not_found(
         self, client: AsyncClient, auth_headers: dict[str, str]

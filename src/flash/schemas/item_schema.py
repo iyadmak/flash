@@ -1,14 +1,16 @@
 from pydantic import BaseModel, ConfigDict
 
+from flash.domain.money import Money
+
 
 class ItemCreate(BaseModel):
     name: str
-    price: float
+    price: Money
 
 
 class ItemUpdate(BaseModel):
     name: str | None = None
-    price: float | None = None
+    price: Money | None = None
 
 
 class ItemRead(BaseModel):
@@ -16,7 +18,7 @@ class ItemRead(BaseModel):
 
     id: int
     name: str
-    price: float
+    price: Money
     order_id: int
 
 

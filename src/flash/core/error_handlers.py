@@ -8,6 +8,7 @@ FastAPI to do it.
 
 import structlog
 from fastapi import FastAPI, Request
+from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
@@ -43,9 +44,15 @@ def register_exception_handlers(app: FastAPI) -> None:
             path=request.url.path,
             errors=exc.errors(),
         )
+        # jsonable_encoder, not the raw list: pydantic puts the failed constraint in
+        # each error's `ctx`, and a constraint can be a value json.dumps refuses --
+        # `ge=Decimal("0")` on Money is exactly that. Without this, a negative price
+        # made the handler itself blow up and the request 500'd instead of 422'd.
         return JSONResponse(
             status_code=422,
-            content={"error": "validation_error", "detail": exc.errors()},
+            content=jsonable_encoder(
+                {"error": "validation_error", "detail": exc.errors()}
+            ),
         )
 
     @app.exception_handler(Exception)

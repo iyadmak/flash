@@ -1,7 +1,9 @@
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
+from pydantic import BaseModel
 from flash.core.error_handlers import register_exception_handlers
 from flash.core.exceptions import ItemNotFound
+from flash.domain.money import Money
 
 
 def build_app() -> FastAPI:
@@ -49,6 +51,32 @@ class TestValidationHandler:
             assert body["error"] == "validation_error"
             assert isinstance(body["detail"], list)
             assert body["detail"][0]["loc"] == ["query", "count"]
+
+
+class TestValidationHandlerSerializesConstraints:
+    async def test_a_constraint_that_json_cannot_encode(self) -> None:
+        """Regression test: pydantic reports the failed constraint in each error's
+        `ctx`, so a Decimal bound (Money uses ge=Decimal("0")) landed a raw Decimal
+        in the response body and json.dumps refused it -- the handler raised and the
+        request 500'd instead of 422'd."""
+        app = FastAPI()
+        register_exception_handlers(app)
+
+        class Payment(BaseModel):
+            amount: Money
+
+        @app.post("/money")
+        async def take_money(payment: Payment) -> None:
+            return None
+
+        transport = ASGITransport(app=app, raise_app_exceptions=False)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            resp = await client.post("/money", json={"amount": -1})
+
+        assert resp.status_code == 422
+        body = resp.json()
+        assert body["error"] == "validation_error"
+        assert body["detail"][0]["loc"] == ["body", "amount"]
 
 
 class TestUnexpectedErrorHandler:

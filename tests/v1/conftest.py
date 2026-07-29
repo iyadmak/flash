@@ -8,6 +8,7 @@ Dependency chain: user → restaurant → order → item
 """
 
 import itertools
+from decimal import Decimal
 import pytest
 import pytest_asyncio
 from collections.abc import Awaitable, Callable
@@ -90,7 +91,7 @@ def make_order(
         fields: dict[str, Any] = {
             "user_id": user.id,
             "restaurant_id": restaurant.id,
-            "total_price": 25.99,
+            "total_price": Decimal("25.99"),
             "status": OrderStatus.PENDING,
         }
         fields.update(overrides)
@@ -109,7 +110,11 @@ def make_item(async_session: AsyncSession, make_order: OrderFactory) -> ItemFact
         order: OrderModel | None = None, **overrides: Any
     ) -> ItemModel:
         order = order or await make_order()
-        fields: dict[str, Any] = {"order_id": order.id, "name": "Burger", "price": 9.99}
+        fields: dict[str, Any] = {
+            "order_id": order.id,
+            "name": "Burger",
+            "price": Decimal("9.99"),
+        }
         fields.update(overrides)
         item_instance = ItemModel(**fields)
         async_session.add(item_instance)

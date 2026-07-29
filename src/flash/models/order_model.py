@@ -1,10 +1,12 @@
 from datetime import datetime
+from decimal import Decimal
 
-from sqlalchemy import Enum, ForeignKey, func
+from sqlalchemy import Enum, ForeignKey, Numeric, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from flash.core.db import Base
 from flash.core.exceptions import IllegalStatusTransition, OrderNotMutable
+from flash.domain.money import MONEY_DECIMAL_PLACES, MONEY_MAX_DIGITS
 from flash.domain.order_status import (
     ALLOWED_TRANSITIONS,
     EDITABLE_STATUSES,
@@ -17,7 +19,12 @@ class OrderModel(Base):
 
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
     restaurant_id: Mapped[int] = mapped_column(ForeignKey("restaurants.id"), index=True)
-    total_price: Mapped[float]
+    # NUMERIC, not DOUBLE PRECISION: asyncpg hands NUMERIC back as a Decimal with
+    # the column's scale preserved, so a value written as 42.50 reads back as
+    # Decimal("42.50") rather than 42.499999999999996.
+    total_price: Mapped[Decimal] = mapped_column(
+        Numeric(MONEY_MAX_DIGITS, MONEY_DECIMAL_PLACES)
+    )
     # native_enum=False keeps this a VARCHAR with a CHECK constraint rather than a
     # Postgres ENUM type, which cannot be altered without a migration dance every
     # time a state is added. values_callable persists the lowercase *values*

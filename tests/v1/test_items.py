@@ -3,7 +3,14 @@
 `auth_headers` authenticates as the `user` fixture and the `order` fixture
 belongs to that user, so `make_order()` with no arguments builds an order owned
 by somebody else.
+
+Money crosses the wire as a JSON string ("42.50"), not a number: pydantic
+serializes Decimal that way, because a JSON float cannot hold every 2-decimal
+amount exactly. Assertions parse it back to Decimal rather than comparing to a
+float literal, so they check the value and not the representation.
 """
+
+from decimal import Decimal
 
 from httpx import AsyncClient
 
@@ -113,7 +120,7 @@ class TestGetItem:
         data = resp.json()
         assert data["id"] == item.id
         assert data["name"] == item.name
-        assert data["price"] == item.price
+        assert Decimal(data["price"]) == item.price
         assert data["order_id"] == item.order_id
 
     async def test_not_found(
@@ -165,7 +172,7 @@ class TestCreateItem:
         assert resp.status_code == 201
         data = resp.json()
         assert data["name"] == "Pizza"
-        assert data["price"] == 12.50
+        assert Decimal(data["price"]) == Decimal("12.50")
         # order_id is never sent -- it comes from the path
         assert data["order_id"] == order.id
         assert "id" in data
@@ -177,6 +184,48 @@ class TestCreateItem:
             f"{items_url(order.id)}/", json={"name": "Pizza"}, headers=auth_headers
         )
         assert resp.status_code == 422
+
+    async def test_sub_cent_price_is_rejected_not_rounded(
+        self, client: AsyncClient, order: OrderModel, auth_headers: dict[str, str]
+    ) -> None:
+        """NUMERIC(10, 2) would round 12.567 to 12.57 on write without complaint,
+        so the amount charged would differ from the amount sent. Money's
+        decimal_places constraint turns that into a 422 at the edge."""
+        resp = await client.post(
+            f"{items_url(order.id)}/",
+            json={"name": "Overprecise", "price": 12.567},
+            headers=auth_headers,
+        )
+        assert resp.status_code == 422
+
+    async def test_negative_price_is_rejected(
+        self, client: AsyncClient, order: OrderModel, auth_headers: dict[str, str]
+    ) -> None:
+        resp = await client.post(
+            f"{items_url(order.id)}/",
+            json={"name": "Refund", "price": -5.0},
+            headers=auth_headers,
+        )
+        assert resp.status_code == 422
+
+    async def test_column_scale_survives_the_round_trip(
+        self, client: AsyncClient, order: OrderModel, auth_headers: dict[str, str]
+    ) -> None:
+        """Posting 12.5 comes back as "12.50" -- the two trailing digits come from
+        the NUMERIC column, so this exercises the storage type and not just
+        pydantic's validation."""
+        created = await client.post(
+            f"{items_url(order.id)}/",
+            json={"name": "Scaled", "price": 12.5},
+            headers=auth_headers,
+        )
+        assert created.status_code == 201
+        assert created.json()["price"] == "12.50"
+
+        fetched = await client.get(
+            f"{items_url(order.id)}/{created.json()['id']}", headers=auth_headers
+        )
+        assert fetched.json()["price"] == "12.50"
 
     async def test_nonexistent_order_returns_404(
         self, client: AsyncClient, auth_headers: dict[str, str]
@@ -234,7 +283,7 @@ class TestUpdateItem:
             headers=auth_headers,
         )
         assert resp.status_code == 200
-        assert resp.json()["price"] == item.price
+        assert Decimal(resp.json()["price"]) == item.price
 
     async def test_updates_price(
         self,
@@ -249,7 +298,7 @@ class TestUpdateItem:
             headers=auth_headers,
         )
         assert resp.status_code == 200
-        assert resp.json()["price"] == 19.99
+        assert Decimal(resp.json()["price"]) == Decimal("19.99")
 
     async def test_not_found(
         self, client: AsyncClient, order: OrderModel, auth_headers: dict[str, str]

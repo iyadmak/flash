@@ -3,13 +3,14 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict
 
+from flash.domain.money import Money
 from flash.domain.order_status import OrderStatus
 from flash.schemas.events import EventEnvelope
 
 
 class OrderCreate(BaseModel):
     restaurant_id: int
-    total_price: float
+    total_price: Money
 
 
 class OrderStatusUpdate(BaseModel):
@@ -31,7 +32,7 @@ class OrderRead(BaseModel):
     id: int
     user_id: int
     restaurant_id: int
-    total_price: float
+    total_price: Money
     status: OrderStatus
     created_at: datetime
     updated_at: datetime
@@ -41,6 +42,13 @@ class OrderRead(BaseModel):
 # a contract with other services, and they should not need a redeploy every time a
 # state is added to our internal lifecycle. Narrowing it to the enum would also
 # change the published JSON schema for no consumer's benefit.
+#
+# `total_price` likewise stays `float` while the column and OrderRead are Decimal.
+# Pydantic serializes Decimal to a JSON *string*, so switching it here would change
+# the published payload from 42.5 to "42.50" and break both consumers -- a wire
+# format change dressed up as an internal storage fix. How money is represented on
+# the wire deserves one deliberate decision (a string, or integer cents, which is
+# what analytics already wants) and its own version bump.
 #
 # Deliberately a comment and not a docstring -- pydantic emits docstrings as the
 # schema's `description`, so an internal design note would ship as part of the
