@@ -1,12 +1,11 @@
 import asyncio
 import structlog
 from typing import Protocol, Sequence
-from datetime import datetime
 from redis.exceptions import LockError
+from flash.domain.order_status import OrderStatus
 from flash.models.order_model import OrderModel
 from flash.schemas.order_schema import (
     OrderCreate,
-    OrderUpdate,
     OrderCreatedData,
     OrderCreatedEvent,
 )
@@ -61,11 +60,14 @@ class OrderService:
         lock_key = f"order_lock:user:{actor_id}:restaurant:{data.restaurant_id}"
         try:
             async with self._lock_client.lock(lock_key, timeout=10, blocking=False):
+                # No status from the client: an order always begins at PENDING and
+                # can only leave it through a legal transition. Letting the caller
+                # pick meant a brand-new order could arrive already `delivered`.
                 order = OrderModel(
                     user_id=actor_id,
                     restaurant_id=data.restaurant_id,
                     total_price=data.total_price,
-                    status=data.status,
+                    status=OrderStatus.PENDING,
                 )
                 order = await self._repo.create(order)
                 await self._repo.commit()
@@ -83,22 +85,29 @@ class OrderService:
         except LockError:
             raise DuplicateRequest() from None
 
-    async def update(
-        self, order_id: int, data: OrderUpdate, actor_id: int
+    async def change_status(
+        self, order_id: int, new_status: OrderStatus, actor_id: int
     ) -> OrderModel:
+        """Orchestration only: the transition rule itself lives on the model.
+
+        No `if changed` guard is needed any more -- change_status raises on an
+        illegal move, including a same-status one, so reaching the log means the
+        order really did advance.
+        """
         order = await self.get(order_id, actor_id)
         old_status = order.status
-        order.total_price = data.total_price or order.total_price
-        order.status = data.status or order.status
-        order.updated_at = datetime.now()
+        order.change_status(new_status)
         await self._repo.commit()
-        if order.status != old_status:
-            logger.info(
-                "order_status_changed",
-                order_id=order.id,
-                old_status=old_status,
-                new_status=order.status,
-            )
+        # updated_at is server-side (onupdate=func.now()), so the in-memory copy is
+        # stale after the commit; refresh rather than hand-assigning a naive
+        # datetime.now() the way this method used to.
+        await self._repo.refresh(order)
+        logger.info(
+            "order_status_changed",
+            order_id=order.id,
+            old_status=old_status,
+            new_status=order.status,
+        )
         return order
 
     async def delete(self, order_id: int, actor_id: int) -> None:

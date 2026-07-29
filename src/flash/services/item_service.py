@@ -36,21 +36,27 @@ class ItemService:
         self._repo = repo
         self._orders = orders
 
-    async def _get_in_order(
-        self, order_id: int, item_id: int, actor_id: int
-    ) -> ItemModel:
-        """Resolve an item the actor is allowed to touch.
+    async def _item_in_order(self, order_id: int, item_id: int) -> ItemModel:
+        """The item must belong to *this* order.
 
-        Two checks, both required. The order gate raises OrderNotFound when the
-        order is missing or not the actor's. Then the item must actually belong
-        to *that* order -- otherwise /orders/{mine}/items/{id} would reach any
-        item in the table, since owning the order in the path would be enough.
+        Without this, /orders/{mine}/items/{id} would reach any item in the
+        table, since owning the order named in the path would be enough.
         """
-        await self._orders.get(order_id, actor_id)
         item = await self._repo.get(item_id)
         if item is None or item.order_id != order_id:
             raise ItemNotFound()
         return item
+
+    async def _editable_order(self, order_id: int, actor_id: int) -> OrderModel:
+        """The write gate: the actor must reach the order *and* the order must
+        still accept changes to its contents.
+
+        Reads deliberately skip the second question -- a delivered order's items
+        stay readable forever, they just stop being editable.
+        """
+        order = await self._orders.get(order_id, actor_id)
+        order.assert_editable()
+        return order
 
     async def list_for_order(
         self, order_id: int, actor_id: int, limit: int, cursor: str | None
@@ -72,10 +78,11 @@ class ItemService:
         return items, next_cursor
 
     async def get(self, order_id: int, item_id: int, actor_id: int) -> ItemModel:
-        return await self._get_in_order(order_id, item_id, actor_id)
+        await self._orders.get(order_id, actor_id)
+        return await self._item_in_order(order_id, item_id)
 
     async def create(self, order_id: int, data: ItemCreate, actor_id: int) -> ItemModel:
-        await self._orders.get(order_id, actor_id)
+        await self._editable_order(order_id, actor_id)
         item = ItemModel(name=data.name, price=data.price, order_id=order_id)
         item = await self._repo.create(item)
         await self._repo.commit()
@@ -84,7 +91,8 @@ class ItemService:
     async def update(
         self, order_id: int, item_id: int, data: ItemUpdate, actor_id: int
     ) -> ItemModel:
-        item = await self._get_in_order(order_id, item_id, actor_id)
+        await self._editable_order(order_id, actor_id)
+        item = await self._item_in_order(order_id, item_id)
         # `is not None` rather than `or`: price=0.0 is a real value and the `or`
         # idiom would silently discard it.
         if data.name is not None:
@@ -95,6 +103,7 @@ class ItemService:
         return item
 
     async def delete(self, order_id: int, item_id: int, actor_id: int) -> None:
-        item = await self._get_in_order(order_id, item_id, actor_id)
+        await self._editable_order(order_id, actor_id)
+        item = await self._item_in_order(order_id, item_id)
         await self._repo.delete(item)
         await self._repo.commit()

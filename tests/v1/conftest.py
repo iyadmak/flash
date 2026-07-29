@@ -15,6 +15,7 @@ from typing import Any
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from flash.core.security import hash_password, create_access_token
+from flash.domain.order_status import OrderStatus
 from flash.models import UserModel, RestaurantModel, OrderModel, ItemModel
 
 # ------------------ Instance Factories ------------------
@@ -83,11 +84,14 @@ def make_order(
     ) -> OrderModel:
         user = user or await make_user()
         restaurant = restaurant or await make_restaurant()
+        # OrderStatus.PENDING rather than the bare string: Enum.__hash__ comes from
+        # the member *name*, so a plain "pending" would compare equal to the member
+        # while hashing differently and every ALLOWED_TRANSITIONS lookup would miss.
         fields: dict[str, Any] = {
             "user_id": user.id,
             "restaurant_id": restaurant.id,
             "total_price": 25.99,
-            "status": "pending",
+            "status": OrderStatus.PENDING,
         }
         fields.update(overrides)
         order_instance = OrderModel(**fields)

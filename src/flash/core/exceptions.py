@@ -1,11 +1,10 @@
-"""Application exceptions and centralized error handling."""
+"""The application's error vocabulary.
 
-import structlog
-from fastapi import FastAPI, Request
-from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse
-
-logger = structlog.get_logger()
+Deliberately imports nothing: domain objects raise these directly (OrderModel
+raises IllegalStatusTransition), so this module must not drag a web framework
+into the domain. The FastAPI handlers that translate them live in
+`error_handlers.py`.
+"""
 
 
 class AppError(Exception):
@@ -97,6 +96,33 @@ class DeleteConflict(AppError):
     detail = "Cannot delete this resource because other records still depend on it."
 
 
+class IllegalStatusTransition(AppError):
+    """Raised by OrderModel.change_status for a move the lifecycle disallows.
+
+    409 rather than 422: the request is well-formed and the target status is a
+    real status -- it is the order's current state that makes it impossible, and
+    that is a conflict, not a validation failure.
+    """
+
+    status_code = 409
+    error_code = "illegal_status_transition"
+    detail = "That status change is not allowed."
+
+    def __init__(self, current: str, requested: str) -> None:
+        super().__init__(f"An order cannot move from {current!r} to {requested!r}.")
+
+
+class OrderNotMutable(AppError):
+    """Raised by OrderModel.assert_editable once an order's contents are fixed."""
+
+    status_code = 409
+    error_code = "order_not_mutable"
+    detail = "This order can no longer be changed."
+
+    def __init__(self, current: str) -> None:
+        super().__init__(f"An order with status {current!r} can no longer be changed.")
+
+
 class ForeignKeyViolation(Exception):
     """Raised by BaseRepository.create() when an insert references a row
     that doesn't exist. Deliberately not an AppError: the repository layer
@@ -123,48 +149,3 @@ class UniqueConstraintViolation(Exception):
     def __init__(self, constraint_name: str | None) -> None:
         self.constraint_name = constraint_name
         super().__init__(f"Unique constraint violation: {constraint_name}")
-
-
-def register_exception_handlers(app: FastAPI) -> None:
-    """Register all exception handlers on the app. Called once from main."""
-
-    @app.exception_handler(AppError)
-    async def handle_app_error(request: Request, exc: AppError) -> JSONResponse:
-        """Known errors are expected control flow — log at warning, no traceback."""
-        logger.warning(
-            "app_error",
-            error_code=exc.error_code,
-            status_code=exc.status_code,
-            path=request.url.path,
-        )
-        return JSONResponse(
-            status_code=exc.status_code,
-            content={"error": exc.error_code, "detail": exc.detail},
-        )
-
-    @app.exception_handler(RequestValidationError)
-    async def handle_validation_error(
-        request: Request, exc: RequestValidationError
-    ) -> JSONResponse:
-        """Log the validation errors (the fields), never the raw payload."""
-        logger.warning(
-            "validation_failed",
-            path=request.url.path,
-            errors=exc.errors(),
-        )
-        return JSONResponse(
-            status_code=422,
-            content={"error": "validation_error", "detail": exc.errors()},
-        )
-
-    @app.exception_handler(Exception)
-    async def handle_unexpected(request: Request, _exc: Exception) -> JSONResponse:
-        """Genuine bugs: full traceback to logs, opaque 500 to the client."""
-        logger.exception("unhandled_exception", path=request.url.path)
-        return JSONResponse(
-            status_code=500,
-            content={
-                "error": "internal_error",
-                "detail": "An unexpected error occurred.",
-            },
-        )

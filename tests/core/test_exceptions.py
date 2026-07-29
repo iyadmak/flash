@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
-from flash.core.exceptions import register_exception_handlers, ItemNotFound
+from flash.core.error_handlers import register_exception_handlers
+from flash.core.exceptions import ItemNotFound
 
 
 def build_app() -> FastAPI:

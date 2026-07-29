@@ -310,3 +310,55 @@ class TestDeleteItem:
             f"{items_url(elsewhere.order_id)}/{elsewhere.id}", headers=auth_headers
         )
         assert resp.status_code == 404
+
+
+class TestConfirmedOrderFreezesItems:
+    """End to end over HTTP: once the order leaves PENDING its contents are fixed.
+
+    The guard lives on OrderModel.assert_editable, so all three write paths get it
+    from one place -- and reads keep working, because a placed order's contents
+    are a record rather than a secret.
+    """
+
+    async def test_writes_are_refused_but_reads_continue(
+        self,
+        client: AsyncClient,
+        order: OrderModel,
+        item: ItemModel,
+        auth_headers: dict[str, str],
+    ) -> None:
+        confirm = await client.patch(
+            f"/api/v1/orders/{order.id}/status",
+            json={"status": "confirmed"},
+            headers=auth_headers,
+        )
+        assert confirm.status_code == 200
+
+        added = await client.post(
+            f"{items_url(order.id)}/",
+            json={"name": "Late Addition", "price": 3.0},
+            headers=auth_headers,
+        )
+        assert added.status_code == 409
+        assert added.json()["error"] == "order_not_mutable"
+
+        edited = await client.patch(
+            f"{items_url(order.id)}/{item.id}",
+            json={"name": "Renamed"},
+            headers=auth_headers,
+        )
+        assert edited.status_code == 409
+
+        removed = await client.delete(
+            f"{items_url(order.id)}/{item.id}", headers=auth_headers
+        )
+        assert removed.status_code == 409
+
+        listed = await client.get(f"{items_url(order.id)}/", headers=auth_headers)
+        assert listed.status_code == 200
+        assert [i["id"] for i in listed.json()["items"]] == [item.id]
+
+        fetched = await client.get(
+            f"{items_url(order.id)}/{item.id}", headers=auth_headers
+        )
+        assert fetched.status_code == 200

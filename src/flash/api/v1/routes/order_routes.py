@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, status, Query
 from flash.api.deps import OrderServiceDep, CurrentUserDep, get_current_user
-from flash.schemas.order_schema import OrderCreate, OrderUpdate, OrderRead
+from flash.schemas.order_schema import OrderCreate, OrderStatusUpdate, OrderRead
 
 router = APIRouter(
     prefix="/orders", tags=["orders"], dependencies=[Depends(get_current_user)]
@@ -34,14 +34,17 @@ async def create_order(
     return OrderRead.model_validate(order)
 
 
-@router.put("/{order_id}")
-async def update_order(
+# A named sub-resource rather than PUT /{order_id}: the only thing a client may
+# change about a placed order is where it sits in its lifecycle, and permissions
+# will eventually attach to that operation rather than to a set of fields.
+@router.patch("/{order_id}/status")
+async def change_order_status(
     order_service: OrderServiceDep,
     order_id: int,
     current_user: CurrentUserDep,
-    data: OrderUpdate,
+    data: OrderStatusUpdate,
 ) -> OrderRead:
-    order = await order_service.update(order_id, data, current_user.id)
+    order = await order_service.change_status(order_id, data.status, current_user.id)
     return OrderRead.model_validate(order)
 
 

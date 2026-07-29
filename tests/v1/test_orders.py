@@ -58,7 +58,6 @@ class TestCreateOrder:
         payload = {
             "restaurant_id": restaurant.id,
             "total_price": 42.50,
-            "status": "pending",
         }
         resp = await client.post(f"{BASE}/", json=payload, headers=auth_headers)
         assert resp.status_code == 201
@@ -88,7 +87,6 @@ class TestCreateOrder:
             "user_id": victim.id,
             "restaurant_id": restaurant.id,
             "total_price": 42.50,
-            "status": "pending",
         }
         resp = await client.post(f"{BASE}/", json=payload, headers=auth_headers)
         assert resp.status_code == 201
@@ -98,7 +96,7 @@ class TestCreateOrder:
         self, client: AsyncClient, auth_headers: dict[str, str]
     ) -> None:
         resp = await client.post(
-            f"{BASE}/", json={"status": "pending"}, headers=auth_headers
+            f"{BASE}/", json={"total_price": 42.50}, headers=auth_headers
         )
         assert resp.status_code == 422
 
@@ -111,7 +109,6 @@ class TestCreateOrder:
         payload = {
             "restaurant_id": 9999,
             "total_price": 42.50,
-            "status": "pending",
         }
         resp = await client.post(f"{BASE}/", json=payload, headers=auth_headers)
         assert resp.status_code == 404
@@ -148,53 +145,87 @@ class TestGetOrder:
         assert resp.json()["error"] == "order_not_found"
 
 
-class TestUpdateOrder:
-    async def test_updates_price_and_status(
+class TestChangeOrderStatus:
+    """PATCH /{id}/status replaces PUT /{id}. total_price is no longer editable at
+    all -- it is about to become derived from the order's items."""
+
+    async def test_advances_the_status(
         self, client: AsyncClient, order: OrderModel, auth_headers: dict[str, str]
     ) -> None:
-        # OrderUpdate requires both fields (neither is Optional)
-        resp = await client.put(
-            f"{BASE}/{order.id}",
-            json={"total_price": 99.99, "status": "delivered"},
+        resp = await client.patch(
+            f"{BASE}/{order.id}/status",
+            json={"status": "confirmed"},
             headers=auth_headers,
         )
         assert resp.status_code == 200
-        data = resp.json()
-        assert data["total_price"] == 99.99
-        assert data["status"] == "delivered"
+        assert resp.json()["status"] == "confirmed"
+
+    async def test_illegal_transition_returns_409(
+        self, client: AsyncClient, order: OrderModel, auth_headers: dict[str, str]
+    ) -> None:
+        """pending -> delivered skips the lifecycle. The old PUT allowed it."""
+        resp = await client.patch(
+            f"{BASE}/{order.id}/status",
+            json={"status": "delivered"},
+            headers=auth_headers,
+        )
+        assert resp.status_code == 409
+        assert resp.json()["error"] == "illegal_status_transition"
+
+    async def test_cannot_walk_backwards(
+        self, client: AsyncClient, order: OrderModel, auth_headers: dict[str, str]
+    ) -> None:
+        url = f"{BASE}/{order.id}/status"
+        assert (
+            await client.patch(url, json={"status": "confirmed"}, headers=auth_headers)
+        ).status_code == 200
+        resp = await client.patch(url, json={"status": "pending"}, headers=auth_headers)
+        assert resp.status_code == 409
+
+    async def test_unknown_status_returns_422(
+        self, client: AsyncClient, order: OrderModel, auth_headers: dict[str, str]
+    ) -> None:
+        """Rejected by the OrderStatus enum on the schema, before any service or
+        model code runs -- so it is a validation failure, not a conflict."""
+        resp = await client.patch(
+            f"{BASE}/{order.id}/status",
+            json={"status": "teleported"},
+            headers=auth_headers,
+        )
+        assert resp.status_code == 422
 
     async def test_missing_field_returns_422(
         self, client: AsyncClient, order: OrderModel, auth_headers: dict[str, str]
     ) -> None:
-        resp = await client.put(
-            f"{BASE}/{order.id}", json={"total_price": 10.0}, headers=auth_headers
+        resp = await client.patch(
+            f"{BASE}/{order.id}/status", json={}, headers=auth_headers
         )
         assert resp.status_code == 422
 
     async def test_not_found(
         self, client: AsyncClient, auth_headers: dict[str, str]
     ) -> None:
-        resp = await client.put(
-            f"{BASE}/9999",
-            json={"total_price": 10.0, "status": "pending"},
+        resp = await client.patch(
+            f"{BASE}/9999/status",
+            json={"status": "confirmed"},
             headers=auth_headers,
         )
         assert resp.status_code == 404
 
-    async def test_cannot_update_another_users_order(
+    async def test_cannot_change_another_users_order(
         self,
         client: AsyncClient,
         make_order: OrderFactory,
         auth_headers: dict[str, str],
     ) -> None:
         other = await make_order()
-        resp = await client.put(
-            f"{BASE}/{other.id}",
-            json={"total_price": 99.99, "status": "delivered"},
+        resp = await client.patch(
+            f"{BASE}/{other.id}/status",
+            json={"status": "confirmed"},
             headers=auth_headers,
         )
         assert resp.status_code == 404
-        assert other.total_price != 99.99
+        assert resp.json()["error"] == "order_not_found"
 
 
 class TestDeleteOrder:

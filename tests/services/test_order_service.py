@@ -9,18 +9,23 @@ from typing import Any
 import pytest
 from redis.exceptions import LockError
 
-from flash.core.exceptions import DuplicateRequest, OrderNotFound
+from flash.core.exceptions import (
+    DuplicateRequest,
+    IllegalStatusTransition,
+    OrderNotFound,
+)
+from flash.domain.order_status import OrderStatus
 from flash.models.order_model import OrderModel
-from flash.schemas.order_schema import OrderCreate, OrderUpdate
+from flash.schemas.order_schema import OrderCreate
 from flash.services.order_service import OrderService
 
 ACTOR_ID = 1
 OTHER_ACTOR_ID = 2
 
 
-def an_order(user_id: int) -> OrderModel:
+def an_order(user_id: int, status: OrderStatus = OrderStatus.PENDING) -> OrderModel:
     return OrderModel(
-        user_id=user_id, restaurant_id=2, total_price=42.50, status="pending"
+        user_id=user_id, restaurant_id=2, total_price=42.50, status=status
     )
 
 
@@ -146,7 +151,7 @@ class TestCreate:
         repo: FakeOrderRepository,
         lock_client: FakeLockClient,
     ) -> None:
-        data = OrderCreate(restaurant_id=2, total_price=42.50, status="pending")
+        data = OrderCreate(restaurant_id=2, total_price=42.50)
 
         first_create = asyncio.create_task(service.create(data, ACTOR_ID))
         try:
@@ -175,7 +180,7 @@ class TestCreate:
         event_stream_publisher: FakeEventStreamPublisher,
     ) -> None:
         repo.allow_create.set()
-        data = OrderCreate(restaurant_id=2, total_price=42.50, status="pending")
+        data = OrderCreate(restaurant_id=2, total_price=42.50)
 
         order = await service.create(data, ACTOR_ID)
 
@@ -204,7 +209,7 @@ class TestCreate:
         event_publisher: FakeEventPublisher,
         event_stream_publisher: FakeEventStreamPublisher,
     ) -> None:
-        data = OrderCreate(restaurant_id=2, total_price=42.50, status="pending")
+        data = OrderCreate(restaurant_id=2, total_price=42.50)
 
         first_create = asyncio.create_task(service.create(data, ACTOR_ID))
         try:
@@ -253,22 +258,57 @@ class TestList:
         assert theirs.id not in listed
 
 
-class TestUpdate:
-    """update() and delete() enforce ownership by routing through get(), so
-    these prove the gate is actually wired up, not just that get() has one."""
+class TestChangeStatus:
+    """change_status() and delete() enforce ownership by routing through get(),
+    so these prove the gate is wired up, not just that get() has one."""
 
-    async def test_cannot_update_another_users_order(
+    async def test_advances_through_a_legal_transition(
+        self, service: OrderService, repo: FakeOrderRepository
+    ) -> None:
+        seeded = repo.seed(an_order(user_id=ACTOR_ID))
+        updated = await service.change_status(
+            seeded.id, OrderStatus.CONFIRMED, ACTOR_ID
+        )
+        assert updated.status is OrderStatus.CONFIRMED
+        assert repo.commit_calls == 1
+
+    async def test_refuses_an_illegal_transition(
+        self, service: OrderService, repo: FakeOrderRepository
+    ) -> None:
+        """pending -> delivered skips the whole middle of the lifecycle. The old
+        PUT endpoint allowed exactly this, and worse, allowed walking back."""
+        seeded = repo.seed(an_order(user_id=ACTOR_ID))
+        with pytest.raises(IllegalStatusTransition):
+            await service.change_status(seeded.id, OrderStatus.DELIVERED, ACTOR_ID)
+        assert seeded.status is OrderStatus.PENDING
+        assert repo.commit_calls == 0
+
+    async def test_refuses_to_leave_a_terminal_state(
+        self, service: OrderService, repo: FakeOrderRepository
+    ) -> None:
+        seeded = repo.seed(an_order(user_id=ACTOR_ID, status=OrderStatus.DELIVERED))
+        with pytest.raises(IllegalStatusTransition):
+            await service.change_status(seeded.id, OrderStatus.PENDING, ACTOR_ID)
+        assert seeded.status is OrderStatus.DELIVERED
+
+    async def test_refuses_a_no_op_transition(
+        self, service: OrderService, repo: FakeOrderRepository
+    ) -> None:
+        """PENDING is not in its own transition set, so a no-op is rejected rather
+        than silently succeeding and logging a change that never happened."""
+        seeded = repo.seed(an_order(user_id=ACTOR_ID))
+        with pytest.raises(IllegalStatusTransition):
+            await service.change_status(seeded.id, OrderStatus.PENDING, ACTOR_ID)
+
+    async def test_cannot_change_another_users_order(
         self, service: OrderService, repo: FakeOrderRepository
     ) -> None:
         seeded = repo.seed(an_order(user_id=ACTOR_ID))
         with pytest.raises(OrderNotFound):
-            await service.update(
-                seeded.id,
-                OrderUpdate(total_price=99.99, status="delivered"),
-                OTHER_ACTOR_ID,
+            await service.change_status(
+                seeded.id, OrderStatus.CONFIRMED, OTHER_ACTOR_ID
             )
-        assert seeded.total_price == 42.50
-        assert seeded.status == "pending"
+        assert seeded.status is OrderStatus.PENDING
 
 
 class TestDelete:

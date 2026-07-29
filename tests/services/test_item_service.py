@@ -8,8 +8,14 @@ real one does.
 
 import pytest
 
-from flash.core.exceptions import InvalidCursor, ItemNotFound, OrderNotFound
+from flash.core.exceptions import (
+    InvalidCursor,
+    ItemNotFound,
+    OrderNotFound,
+    OrderNotMutable,
+)
 from flash.core.pagination import encode_cursor
+from flash.domain.order_status import OrderStatus
 from flash.models.item_model import ItemModel
 from flash.models.order_model import OrderModel
 from flash.schemas.item_schema import ItemCreate, ItemUpdate
@@ -20,13 +26,22 @@ OTHER_ACTOR_ID = 2
 MY_ORDER_ID = 10
 MY_OTHER_ORDER_ID = 11
 THEIR_ORDER_ID = 20
+MY_DELIVERED_ORDER_ID = 12
 
 
 class FakeOrderAccess:
-    """Stands in for OrderService.get -- the ownership gate items delegate to."""
+    """Stands in for OrderService.get -- the ownership gate items delegate to.
 
-    def __init__(self, owners: dict[int, int]) -> None:
+    Returns a real OrderModel rather than a stub, because ItemService calls
+    assert_editable() on it: the editability rule under test lives on the model,
+    so faking it away would test nothing.
+    """
+
+    def __init__(
+        self, owners: dict[int, int], statuses: dict[int, OrderStatus] | None = None
+    ) -> None:
         self._owners = owners
+        self._statuses = statuses or {}
         self.calls: list[tuple[int, int]] = []
 
     async def get(self, order_id: int, actor_id: int) -> OrderModel:
@@ -39,7 +54,7 @@ class FakeOrderAccess:
             user_id=owner,
             restaurant_id=99,
             total_price=42.50,
-            status="pending",
+            status=self._statuses.get(order_id, OrderStatus.PENDING),
         )
 
 
@@ -82,7 +97,13 @@ class FakeItemRepository:
 @pytest.fixture
 def orders() -> FakeOrderAccess:
     return FakeOrderAccess(
-        {MY_ORDER_ID: ACTOR_ID, MY_OTHER_ORDER_ID: ACTOR_ID, THEIR_ORDER_ID: 99}
+        owners={
+            MY_ORDER_ID: ACTOR_ID,
+            MY_OTHER_ORDER_ID: ACTOR_ID,
+            MY_DELIVERED_ORDER_ID: ACTOR_ID,
+            THEIR_ORDER_ID: 99,
+        },
+        statuses={MY_DELIVERED_ORDER_ID: OrderStatus.DELIVERED},
     )
 
 
@@ -238,3 +259,48 @@ class TestDelete:
         with pytest.raises(ItemNotFound):
             await service.delete(MY_ORDER_ID, seeded.id, ACTOR_ID)
         assert await repo.get(seeded.id) is seeded
+
+
+class TestOrderMustBeEditable:
+    """Writes go through OrderModel.assert_editable, reads do not.
+
+    The actor owns MY_DELIVERED_ORDER_ID, so the ownership gate passes -- only
+    the order's position in its lifecycle stops the write. Because the guard sits
+    on the model rather than in each service method, a write path added later
+    inherits it instead of having to remember it.
+    """
+
+    async def test_cannot_add_an_item(self, service: ItemService) -> None:
+        with pytest.raises(OrderNotMutable):
+            await service.create(
+                MY_DELIVERED_ORDER_ID, ItemCreate(name="Late", price=5.0), ACTOR_ID
+            )
+
+    async def test_cannot_update_an_item(
+        self, service: ItemService, repo: FakeItemRepository
+    ) -> None:
+        seeded = repo.seed(an_item(MY_DELIVERED_ORDER_ID))
+        with pytest.raises(OrderNotMutable):
+            await service.update(
+                MY_DELIVERED_ORDER_ID, seeded.id, ItemUpdate(name="Edited"), ACTOR_ID
+            )
+        assert seeded.name == "Burger"
+
+    async def test_cannot_delete_an_item(
+        self, service: ItemService, repo: FakeItemRepository
+    ) -> None:
+        seeded = repo.seed(an_item(MY_DELIVERED_ORDER_ID))
+        with pytest.raises(OrderNotMutable):
+            await service.delete(MY_DELIVERED_ORDER_ID, seeded.id, ACTOR_ID)
+        assert await repo.get(seeded.id) is seeded
+
+    async def test_items_stay_readable(
+        self, service: ItemService, repo: FakeItemRepository
+    ) -> None:
+        """A delivered order is a record: its contents are frozen, not hidden."""
+        seeded = repo.seed(an_item(MY_DELIVERED_ORDER_ID))
+        assert await service.get(MY_DELIVERED_ORDER_ID, seeded.id, ACTOR_ID) is seeded
+        items, _ = await service.list_for_order(
+            MY_DELIVERED_ORDER_ID, ACTOR_ID, 50, None
+        )
+        assert [i.id for i in items] == [seeded.id]

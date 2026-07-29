@@ -10,7 +10,7 @@ from flash.api.routes.health import router as health_router
 from flash.api.v1.router import router as v1_router
 from flash.core.config import get_settings
 from flash.core.log_config import configure_logging
-from flash.core.exceptions import register_exception_handlers
+from flash.core.error_handlers import register_exception_handlers
 from flash.core.middleware import RequestLoggingMiddleware
 
 
