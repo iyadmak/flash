@@ -1,10 +1,16 @@
-"""Tests for /api/v1/restaurants/ CRUD endpoints."""
+"""Tests for /api/v1/restaurants/ CRUD endpoints.
+
+Restaurants are public-read / owner-write. `auth_headers` authenticates as the
+`user` fixture and the `restaurant` fixture is owned by that same user, so
+`make_restaurant()` with no arguments builds one owned by somebody else.
+"""
 
 from httpx import AsyncClient
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from flash.models.restaurant_model import RestaurantModel
 from flash.models.user_model import UserModel
-from .conftest import OrderFactory
+from .conftest import OrderFactory, RestaurantFactory, UserFactory
 
 BASE = "/api/v1/restaurants"
 
@@ -28,12 +34,27 @@ class TestListRestaurants:
         ids = [r["id"] for r in resp.json()]
         assert restaurant.id in ids
 
+    async def test_includes_restaurants_owned_by_others(
+        self,
+        client: AsyncClient,
+        restaurant: RestaurantModel,
+        make_restaurant: RestaurantFactory,
+        auth_headers: dict[str, str],
+    ) -> None:
+        """The deliberate inverse of orders: browsing is the whole point of a
+        restaurant listing, so it is never scoped to the caller."""
+        theirs = await make_restaurant()
+        resp = await client.get(f"{BASE}/", headers=auth_headers)
+        assert resp.status_code == 200
+        ids = [r["id"] for r in resp.json()]
+        assert {restaurant.id, theirs.id} <= set(ids)
+
 
 class TestCreateRestaurant:
     async def test_creates_and_returns_restaurant(
         self, client: AsyncClient, user: UserModel, auth_headers: dict[str, str]
     ) -> None:
-        payload = {"owner_id": user.id, "name": "New Place", "address": "456 Main St"}
+        payload = {"name": "New Place", "address": "456 Main St"}
         resp = await client.post(f"{BASE}/", json=payload, headers=auth_headers)
         assert resp.status_code == 201
         data = resp.json()
@@ -45,7 +66,6 @@ class TestCreateRestaurant:
         self, client: AsyncClient, user: UserModel, auth_headers: dict[str, str]
     ) -> None:
         payload = {
-            "owner_id": user.id,
             "name": "Full Details",
             "address": "789 Oak Ave",
             "phone": "555-1234",
@@ -57,12 +77,51 @@ class TestCreateRestaurant:
         assert data["phone"] == "555-1234"
         assert data["email"] == "cafe@example.com"
 
+    async def test_owner_is_the_authenticated_user(
+        self,
+        client: AsyncClient,
+        user: UserModel,
+        auth_headers: dict[str, str],
+        async_session: AsyncSession,
+    ) -> None:
+        """RestaurantRead does not expose owner_id, so this asserts against the
+        row rather than the response body."""
+        payload = {"name": "Owned Place", "address": "1 Owner Way"}
+        resp = await client.post(f"{BASE}/", json=payload, headers=auth_headers)
+        assert resp.status_code == 201
+        created = await async_session.get(RestaurantModel, resp.json()["id"])
+        assert created is not None
+        assert created.owner_id == user.id
+
+    async def test_owner_id_in_body_cannot_reassign_ownership(
+        self,
+        client: AsyncClient,
+        user: UserModel,
+        make_user: UserFactory,
+        auth_headers: dict[str, str],
+        async_session: AsyncSession,
+    ) -> None:
+        """Regression test for the ownership hole: RestaurantCreate no longer
+        has an owner_id field, so pydantic drops it from the body and the
+        restaurant is attributed to the token subject regardless."""
+        victim = await make_user()
+        payload = {
+            "owner_id": victim.id,
+            "name": "Hijack Attempt",
+            "address": "2 Spoof Rd",
+        }
+        resp = await client.post(f"{BASE}/", json=payload, headers=auth_headers)
+        assert resp.status_code == 201
+        created = await async_session.get(RestaurantModel, resp.json()["id"])
+        assert created is not None
+        assert created.owner_id == user.id
+
     async def test_missing_name_returns_422(
         self, client: AsyncClient, user: UserModel, auth_headers: dict[str, str]
     ) -> None:
         resp = await client.post(
             f"{BASE}/",
-            json={"owner_id": user.id, "address": "123 St"},
+            json={"address": "123 St"},
             headers=auth_headers,
         )
         assert resp.status_code == 422
@@ -72,18 +131,10 @@ class TestCreateRestaurant:
     ) -> None:
         resp = await client.post(
             f"{BASE}/",
-            json={"owner_id": user.id, "name": "No Address"},
+            json={"name": "No Address"},
             headers=auth_headers,
         )
         assert resp.status_code == 422
-
-    async def test_nonexistent_owner_id_returns_404(
-        self, client: AsyncClient, auth_headers: dict[str, str]
-    ) -> None:
-        payload = {"owner_id": 9999, "name": "Ghost Diner", "address": "nowhere"}
-        resp = await client.post(f"{BASE}/", json=payload, headers=auth_headers)
-        assert resp.status_code == 404
-        assert resp.json()["error"] == "user_not_found"
 
 
 class TestGetRestaurant:
@@ -104,6 +155,17 @@ class TestGetRestaurant:
     ) -> None:
         resp = await client.get(f"{BASE}/9999", headers=auth_headers)
         assert resp.status_code == 404
+
+    async def test_can_read_another_users_restaurant(
+        self,
+        client: AsyncClient,
+        make_restaurant: RestaurantFactory,
+        auth_headers: dict[str, str],
+    ) -> None:
+        theirs = await make_restaurant()
+        resp = await client.get(f"{BASE}/{theirs.id}", headers=auth_headers)
+        assert resp.status_code == 200
+        assert resp.json()["id"] == theirs.id
 
 
 class TestUpdateRestaurant:
@@ -127,6 +189,22 @@ class TestUpdateRestaurant:
         )
         assert resp.status_code == 404
 
+    async def test_cannot_update_another_users_restaurant(
+        self,
+        client: AsyncClient,
+        make_restaurant: RestaurantFactory,
+        auth_headers: dict[str, str],
+    ) -> None:
+        """403 and not 404, unlike orders -- the restaurant is readable by
+        anyone, so masking its existence would hide nothing."""
+        theirs = await make_restaurant()
+        resp = await client.put(
+            f"{BASE}/{theirs.id}", json={"name": "Hijacked"}, headers=auth_headers
+        )
+        assert resp.status_code == 403
+        assert resp.json()["error"] == "forbidden"
+        assert theirs.name != "Hijacked"
+
 
 class TestDeleteRestaurant:
     async def test_deletes_restaurant(
@@ -146,6 +224,16 @@ class TestDeleteRestaurant:
     ) -> None:
         resp = await client.delete(f"{BASE}/9999", headers=auth_headers)
         assert resp.status_code == 404
+
+    async def test_cannot_delete_another_users_restaurant(
+        self,
+        client: AsyncClient,
+        make_restaurant: RestaurantFactory,
+        auth_headers: dict[str, str],
+    ) -> None:
+        theirs = await make_restaurant()
+        resp = await client.delete(f"{BASE}/{theirs.id}", headers=auth_headers)
+        assert resp.status_code == 403
 
     async def test_conflict_when_orders_reference_it(
         self,

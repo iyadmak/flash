@@ -3,7 +3,6 @@ from pydantic import ConfigDict
 
 
 class RestaurantCreate(BaseModel):
-    owner_id: int
     name: str
     address: str
     phone: str | None = None

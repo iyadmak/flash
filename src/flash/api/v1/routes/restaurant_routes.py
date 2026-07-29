@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, status, Query
 
-from flash.api.deps import RestaurantServiceDep, get_current_user
+from flash.api.deps import RestaurantServiceDep, CurrentUserDep, get_current_user
 from flash.schemas.restaurant_schema import (
     RestaurantRead,
     RestaurantCreate,
@@ -36,8 +36,9 @@ async def get(
 async def create(
     restaurant_service: RestaurantServiceDep,
     data: RestaurantCreate,
+    current_user: CurrentUserDep,
 ) -> RestaurantRead:
-    restaurant = await restaurant_service.create(data)
+    restaurant = await restaurant_service.create(data, current_user.id)
     return RestaurantRead.model_validate(restaurant)
 
 
@@ -46,11 +47,16 @@ async def update(
     restaurant_service: RestaurantServiceDep,
     restaurant_id: int,
     data: RestaurantUpdate,
+    current_user: CurrentUserDep,
 ) -> RestaurantRead:
-    restaurant = await restaurant_service.update(restaurant_id, data)
+    restaurant = await restaurant_service.update(restaurant_id, data, current_user.id)
     return RestaurantRead.model_validate(restaurant)
 
 
 @router.delete("/{restaurant_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete(restaurant_service: RestaurantServiceDep, restaurant_id: int) -> None:
-    await restaurant_service.delete(restaurant_id)
+async def delete(
+    restaurant_service: RestaurantServiceDep,
+    restaurant_id: int,
+    current_user: CurrentUserDep,
+) -> None:
+    await restaurant_service.delete(restaurant_id, current_user.id)
