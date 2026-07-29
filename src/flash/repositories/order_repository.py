@@ -1,3 +1,5 @@
+from collections.abc import Sequence
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from flash.repositories.base import BaseRepository
 from flash.models.order_model import OrderModel
@@ -17,3 +19,15 @@ class OrderRepository(BaseRepository[OrderModel]):
             if e.constraint_name == "fk_orders_user_id_users":
                 raise UserNotFound() from None
             raise
+
+    async def list_for_user(
+        self, user_id: int, limit: int, offset: int
+    ) -> Sequence[OrderModel]:
+        orders = await self._session.execute(
+            select(OrderModel)
+            .where(OrderModel.user_id == user_id)
+            .order_by(OrderModel.id)
+            .limit(limit)
+            .offset(offset)
+        )
+        return orders.scalars().all()

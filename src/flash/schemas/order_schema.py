@@ -7,7 +7,6 @@ from flash.schemas.events import EventEnvelope
 
 
 class OrderCreate(BaseModel):
-    user_id: int
     restaurant_id: int
     total_price: float
     status: str

@@ -9,10 +9,19 @@ from typing import Any
 import pytest
 from redis.exceptions import LockError
 
-from flash.core.exceptions import DuplicateRequest
+from flash.core.exceptions import DuplicateRequest, OrderNotFound
 from flash.models.order_model import OrderModel
-from flash.schemas.order_schema import OrderCreate
+from flash.schemas.order_schema import OrderCreate, OrderUpdate
 from flash.services.order_service import OrderService
+
+ACTOR_ID = 1
+OTHER_ACTOR_ID = 2
+
+
+def an_order(user_id: int) -> OrderModel:
+    return OrderModel(
+        user_id=user_id, restaurant_id=2, total_price=42.50, status="pending"
+    )
 
 
 class FakeOrderRepository:
@@ -24,11 +33,23 @@ class FakeOrderRepository:
         self.create_calls = 0
         self.commit_calls = 0
 
+    def seed(self, order: OrderModel) -> OrderModel:
+        """Insert an order directly, bypassing the lock/publish path in
+        OrderService.create -- for setting up orders owned by other users."""
+        order.id = self._next_id
+        self._next_id += 1
+        order.created_at = order.updated_at = datetime.now(timezone.utc)
+        self._orders[order.id] = order
+        return order
+
     async def get(self, id: int) -> OrderModel | None:
         return self._orders.get(id)
 
-    async def list(self, limit: int, offset: int) -> list[OrderModel]:
-        return list(self._orders.values())[offset : offset + limit]
+    async def list_for_user(
+        self, user_id: int, limit: int, offset: int
+    ) -> list[OrderModel]:
+        owned = [o for o in self._orders.values() if o.user_id == user_id]
+        return owned[offset : offset + limit]
 
     async def create(self, instance: OrderModel) -> OrderModel:
         self.create_calls += 1
@@ -125,16 +146,14 @@ class TestCreate:
         repo: FakeOrderRepository,
         lock_client: FakeLockClient,
     ) -> None:
-        data = OrderCreate(
-            user_id=1, restaurant_id=2, total_price=42.50, status="pending"
-        )
+        data = OrderCreate(restaurant_id=2, total_price=42.50, status="pending")
 
-        first_create = asyncio.create_task(service.create(data))
+        first_create = asyncio.create_task(service.create(data, ACTOR_ID))
         try:
             await asyncio.wait_for(repo.create_started.wait(), timeout=1)
 
             with pytest.raises(DuplicateRequest):
-                await service.create(data)
+                await service.create(data, ACTOR_ID)
         finally:
             repo.allow_create.set()
 
@@ -156,11 +175,9 @@ class TestCreate:
         event_stream_publisher: FakeEventStreamPublisher,
     ) -> None:
         repo.allow_create.set()
-        data = OrderCreate(
-            user_id=1, restaurant_id=2, total_price=42.50, status="pending"
-        )
+        data = OrderCreate(restaurant_id=2, total_price=42.50, status="pending")
 
-        order = await service.create(data)
+        order = await service.create(data, ACTOR_ID)
 
         assert len(event_publisher.published) == 1
         routing_key, payload = event_publisher.published[0]
@@ -187,19 +204,78 @@ class TestCreate:
         event_publisher: FakeEventPublisher,
         event_stream_publisher: FakeEventStreamPublisher,
     ) -> None:
-        data = OrderCreate(
-            user_id=1, restaurant_id=2, total_price=42.50, status="pending"
-        )
+        data = OrderCreate(restaurant_id=2, total_price=42.50, status="pending")
 
-        first_create = asyncio.create_task(service.create(data))
+        first_create = asyncio.create_task(service.create(data, ACTOR_ID))
         try:
             await asyncio.wait_for(repo.create_started.wait(), timeout=1)
 
             with pytest.raises(DuplicateRequest):
-                await service.create(data)
+                await service.create(data, ACTOR_ID)
         finally:
             repo.allow_create.set()
         await first_create
 
         assert len(event_publisher.published) == 1
         assert len(event_stream_publisher.published) == 1
+
+
+class TestGet:
+    async def test_returns_own_order(
+        self, service: OrderService, repo: FakeOrderRepository
+    ) -> None:
+        seeded = repo.seed(an_order(user_id=ACTOR_ID))
+        assert await service.get(seeded.id, ACTOR_ID) is seeded
+
+    async def test_raises_not_found_when_missing(self, service: OrderService) -> None:
+        with pytest.raises(OrderNotFound):
+            await service.get(999, ACTOR_ID)
+
+    async def test_another_users_order_raises_not_found(
+        self, service: OrderService, repo: FakeOrderRepository
+    ) -> None:
+        """OrderNotFound rather than Forbidden, deliberately: the two outcomes
+        have to be indistinguishable to the caller, or the endpoint reveals
+        which order ids exist."""
+        seeded = repo.seed(an_order(user_id=ACTOR_ID))
+        with pytest.raises(OrderNotFound):
+            await service.get(seeded.id, OTHER_ACTOR_ID)
+
+
+class TestList:
+    async def test_returns_only_the_actors_orders(
+        self, service: OrderService, repo: FakeOrderRepository
+    ) -> None:
+        mine = repo.seed(an_order(user_id=ACTOR_ID))
+        theirs = repo.seed(an_order(user_id=OTHER_ACTOR_ID))
+        listed = [order.id for order in await service.list(50, 0, ACTOR_ID)]
+        assert listed == [mine.id]
+        assert theirs.id not in listed
+
+
+class TestUpdate:
+    """update() and delete() enforce ownership by routing through get(), so
+    these prove the gate is actually wired up, not just that get() has one."""
+
+    async def test_cannot_update_another_users_order(
+        self, service: OrderService, repo: FakeOrderRepository
+    ) -> None:
+        seeded = repo.seed(an_order(user_id=ACTOR_ID))
+        with pytest.raises(OrderNotFound):
+            await service.update(
+                seeded.id,
+                OrderUpdate(total_price=99.99, status="delivered"),
+                OTHER_ACTOR_ID,
+            )
+        assert seeded.total_price == 42.50
+        assert seeded.status == "pending"
+
+
+class TestDelete:
+    async def test_cannot_delete_another_users_order(
+        self, service: OrderService, repo: FakeOrderRepository
+    ) -> None:
+        seeded = repo.seed(an_order(user_id=ACTOR_ID))
+        with pytest.raises(OrderNotFound):
+            await service.delete(seeded.id, OTHER_ACTOR_ID)
+        assert await repo.get(seeded.id) is seeded
