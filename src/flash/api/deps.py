@@ -97,10 +97,6 @@ def get_auth_service(
     return AuthService(user_repo, reset_token_repo, cache)
 
 
-def get_item_service(repo: ItemRepoDep) -> ItemService:
-    return ItemService(repo)
-
-
 def get_user_service(repo: UserRepoDep, cache: CacheDep) -> UserService:
     return UserService(repo, cache)
 
@@ -119,10 +115,21 @@ def get_order_service(
 
 
 AuthServiceDep = Annotated[AuthService, Depends(get_auth_service)]
-ItemServiceDep = Annotated[ItemService, Depends(get_item_service)]
 UserServiceDep = Annotated[UserService, Depends(get_user_service)]
 RestaurantServiceDep = Annotated[RestaurantService, Depends(get_restaurant_service)]
 OrderServiceDep = Annotated[OrderService, Depends(get_order_service)]
+
+
+# Declared after OrderServiceDep because it depends on it: items are part of the
+# order aggregate, so ItemService authorizes through OrderService rather than
+# reimplementing the ownership rule. The collaborators that pulls in are cheap --
+# the lock client and domain publisher are lru_cache'd singletons, and the stream
+# publisher is a thin wrapper over the already-running Kafka producer.
+def get_item_service(repo: ItemRepoDep, order_service: OrderServiceDep) -> ItemService:
+    return ItemService(repo, order_service)
+
+
+ItemServiceDep = Annotated[ItemService, Depends(get_item_service)]
 
 
 def get_analytics_service(
