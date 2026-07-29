@@ -9,6 +9,7 @@ from flash.core.adapters.cache import CacheProtocol
 from flash.core.security import (
     create_access_token,
     hash_password,
+    hash_password_blocking,
     verify_password,
     decode_access_token,
 )
@@ -21,7 +22,7 @@ USER_CACHE_TTL_SECONDS = 300
 
 # compute at import time to have the same amount of time as a real password check
 # so wrong password and wrong email can't be told apart by response time
-_DUMMY_HASH = hash_password("dummy-password-for-timing-safety")
+_DUMMY_HASH = hash_password_blocking("dummy-password-for-timing-safety")
 
 RESET_TOKEN_EXPIRE_MINUTES = 30
 
@@ -59,9 +60,9 @@ class AuthService:
     async def login(self, email: str, password: str) -> str:
         user = await self._user_repo.get_by_email(email)
         if user is None:
-            verify_password(password, _DUMMY_HASH)
+            await verify_password(password, _DUMMY_HASH)
             raise InvalidCredentials()
-        if not verify_password(password, user.password):
+        if not await verify_password(password, user.password):
             raise InvalidCredentials()
         return create_access_token(subject=str(user.id))
 
@@ -121,7 +122,7 @@ class AuthService:
         user = await self._user_repo.get(reset_token.user_id)
         if user is None:
             raise InvalidToken()
-        user.password = hash_password(new_password)
+        user.password = await hash_password(new_password)
         reset_token.used_at = datetime.now(timezone.utc)
         await self._reset_token_repo.commit()
         await self.revoke_all_sessions(user.id)

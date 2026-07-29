@@ -3,7 +3,7 @@
 import pytest
 
 from flash.core.exceptions import UserNotFound
-from flash.core.security import verify_password
+from flash.core.security import verify_password_blocking
 from flash.models.user_model import UserModel
 from flash.schemas.user_schema import UserCreate, UserUpdate
 from flash.services.user_service import UserService
@@ -105,7 +105,7 @@ class TestCreate:
             UserCreate(username="iyad", email="iyad@example.com", password="secret123")
         )
         assert user.password != "secret123"
-        assert verify_password("secret123", user.password)
+        assert verify_password_blocking("secret123", user.password)
 
 
 class TestUpdate:

@@ -7,7 +7,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from flash.core.exceptions import InvalidCredentials, InvalidToken
-from flash.core.security import hash_password, verify_password
+from flash.core.security import hash_password_blocking, verify_password_blocking
 from flash.models.password_reset_token_model import PasswordResetTokenModel
 from flash.models.user_model import UserModel
 from flash.services.auth_service import AuthService, _hash_token
@@ -101,7 +101,7 @@ def _make_user(
     return UserModel(
         username="iyad",
         email=email,
-        password=hash_password(password),
+        password=hash_password_blocking(password),
         is_active=True,
         is_verified=False,
         created_at=now,
@@ -232,8 +232,8 @@ class TestPasswordReset:
 
         await service.reset_password(raw_token, "new-password123")
 
-        assert verify_password("new-password123", user.password)
-        assert not verify_password("old-password", user.password)
+        assert verify_password_blocking("new-password123", user.password)
+        assert not verify_password_blocking("old-password", user.password)
 
     async def test_requesting_reset_queues_the_celery_task(
         self,

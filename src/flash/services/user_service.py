@@ -32,7 +32,7 @@ class UserService:
         user = UserModel(
             username=data.username,
             email=data.email,
-            password=hash_password(data.password),
+            password=await hash_password(data.password),
         )
         user = await self._repo.create(user)
         await self._repo.commit()
@@ -49,7 +49,7 @@ class UserService:
             user.email = data.email
             changed_fields.append("email")
         if data.password is not None:
-            user.password = hash_password(data.password)
+            user.password = await hash_password(data.password)
             changed_fields.append("password")
         if data.is_verified is not None:
             user.is_verified = data.is_verified

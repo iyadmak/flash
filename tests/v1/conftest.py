@@ -12,7 +12,7 @@ from collections.abc import Awaitable, Callable
 from typing import Any
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from flash.core.security import hash_password, create_access_token
+from flash.core.security import hash_password_blocking, create_access_token
 from flash.domain.order_status import OrderStatus
 from flash.models import UserModel, RestaurantModel, OrderModel, ItemModel
 
@@ -36,7 +36,7 @@ def make_user(async_session: AsyncSession) -> UserFactory:
             "password": "password123",
         }
         fields.update(overrides)
-        fields["password"] = hash_password(fields["password"])
+        fields["password"] = hash_password_blocking(fields["password"])
         user_instance = UserModel(**fields)
         async_session.add(user_instance)
         await async_session.commit()
