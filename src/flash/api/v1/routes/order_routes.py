@@ -34,9 +34,7 @@ async def create_order(
     return OrderRead.model_validate(order)
 
 
-# A named sub-resource rather than PUT /{order_id}: the only thing a client may
-# change about a placed order is where it sits in its lifecycle, and permissions
-# will eventually attach to that operation rather than to a set of fields.
+# A named operation rather than PUT /{order_id}, so permissions can attach to it.
 @router.patch("/{order_id}/status")
 async def change_order_status(
     order_service: OrderServiceDep,

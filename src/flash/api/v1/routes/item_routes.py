@@ -2,9 +2,7 @@ from fastapi import APIRouter, Depends, Query, status
 from flash.schemas.item_schema import ItemRead, ItemCreate, ItemUpdate, ItemPage
 from flash.api.deps import ItemServiceDep, CurrentUserDep, get_current_user
 
-# Items are a subresource of an order, not a top-level collection: an item has
-# no meaning apart from its order, and nesting the path is what lets every
-# handler derive authorization from the parent instead of re-deriving it.
+# Nested so every handler derives authorization from the parent order.
 router = APIRouter(
     prefix="/orders/{order_id}/items",
     tags=["items"],

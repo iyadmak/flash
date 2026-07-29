@@ -25,8 +25,8 @@ class FakeUserRepository:
         self._users[user.id] = user
         return user
 
-    async def get(self, id: int) -> UserModel | None:
-        return self._users.get(id)
+    async def get(self, entity_id: int) -> UserModel | None:
+        return self._users.get(entity_id)
 
     async def create(self, instance: UserModel) -> UserModel:
         return self.seed(instance)
@@ -83,11 +83,9 @@ class TestGet:
     ) -> None:
         """The read path deliberately does not filter on is_active.
 
-        Deactivating a user locks them out of authentication -- AuthService
-        rejects an inactive subject -- it does not erase them from reads.
-        Previously asserted over HTTP, but self-only authorization makes that
-        unreachable: an inactive user can no longer get a usable token, and
-        nobody else may read their record.
+        Deactivating locks a user out of authentication; it does not erase them
+        from reads. Asserted here because self-only auth makes it unreachable
+        over HTTP -- an inactive user cannot obtain a usable token.
         """
         seeded = repo.seed(
             UserModel(
@@ -121,11 +119,10 @@ class TestUpdate:
     async def test_applies_the_is_active_flag(
         self, service: UserService, repo: FakeUserRepository
     ) -> None:
-        """Deactivation is the lockout mechanism -- AuthService refuses a
-        token whose subject is inactive -- so this flag has to actually reach
-        the model. Seeded rather than created because UserCreate cannot
-        express is_active. See TestGet.test_returns_inactive_user for the
-        other half: reads deliberately do not filter on it."""
+        """Deactivation is the lockout mechanism, so the flag must reach the model.
+
+        Seeded rather than created: UserCreate cannot express is_active.
+        """
         seeded = repo.seed(
             UserModel(
                 username="iyad",

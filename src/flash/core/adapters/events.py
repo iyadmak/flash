@@ -19,11 +19,8 @@ class KombuEventPublisher:
         self._connection = connection
 
     def publish(self, routing_key: str, payload: dict[str, Any]) -> None:
-        # Pooled producer/connection, not a single shared Producer(self._connection):
-        # this is called from multiple threads at once (via asyncio.to_thread in
-        # OrderService.create), and kombu Connection/Channel objects aren't safe for
-        # concurrent multi-threaded use. The pool hands each caller its own
-        # connection instead of everyone contending on one.
+        # Pooled, not one shared Producer: called from several threads at once via
+        # asyncio.to_thread, and kombu channels are not thread-safe.
         with producers[self._connection].acquire(block=True) as producer:
             producer.publish(
                 payload,

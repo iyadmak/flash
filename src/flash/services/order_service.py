@@ -18,7 +18,7 @@ logger = structlog.get_logger()
 
 
 class OrderRepoProtocol(Protocol):
-    async def get(self, id: int) -> OrderModel | None: ...
+    async def get(self, entity_id: int) -> OrderModel | None: ...
     async def list_for_user(
         self, user_id: int, limit: int, offset: int
     ) -> Sequence[OrderModel]: ...
@@ -46,9 +46,8 @@ class OrderService:
         if order is None:
             raise OrderNotFound()
         if order.user_id != actor_id:
-            # 404 rather than 403: a 403 would confirm the order exists and
-            # turn this endpoint into an id-enumeration oracle. Logged so the
-            # two cases stay distinguishable to us, not to the caller.
+            # 404, not 403: a 403 would confirm the order exists. Logged so the two
+            # cases stay distinguishable to us, not to the caller.
             logger.warning("order_access_denied", order_id=order_id, actor_id=actor_id)
             raise OrderNotFound()
         return order
@@ -60,9 +59,7 @@ class OrderService:
         lock_key = f"order_lock:user:{actor_id}:restaurant:{data.restaurant_id}"
         try:
             async with self._lock_client.lock(lock_key, timeout=10, blocking=False):
-                # No status from the client: an order always begins at PENDING and
-                # can only leave it through a legal transition. Letting the caller
-                # pick meant a brand-new order could arrive already `delivered`.
+                # Always PENDING: the client cannot pick a starting state.
                 order = OrderModel(
                     user_id=actor_id,
                     restaurant_id=data.restaurant_id,
@@ -88,19 +85,12 @@ class OrderService:
     async def change_status(
         self, order_id: int, new_status: OrderStatus, actor_id: int
     ) -> OrderModel:
-        """Orchestration only: the transition rule itself lives on the model.
-
-        No `if changed` guard is needed any more -- change_status raises on an
-        illegal move, including a same-status one, so reaching the log means the
-        order really did advance.
-        """
+        """Orchestration only; the transition rule lives on the model."""
         order = await self.get(order_id, actor_id)
         old_status = order.status
         order.change_status(new_status)
         await self._repo.commit()
-        # updated_at is server-side (onupdate=func.now()), so the in-memory copy is
-        # stale after the commit; refresh rather than hand-assigning a naive
-        # datetime.now() the way this method used to.
+        # updated_at is server-side, so the in-memory copy is stale after commit.
         await self._repo.refresh(order)
         logger.info(
             "order_status_changed",

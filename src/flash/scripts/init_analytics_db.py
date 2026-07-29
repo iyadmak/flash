@@ -1,10 +1,7 @@
-"""One-off setup script: creates the `analytics` MongoDB database.
+"""One-off setup: creates the `analytics` MongoDB database.
 
-MongoDB doesn't persist an empty database -- one with zero collections
-never shows up in list_database_names() and vanishes once every client
-disconnects. Explicitly creating a collection (rather than just connecting,
-or inserting a throwaway document as a workaround) is the correct way to
-make the database real before any reporting feature writes to it.
+MongoDB does not persist a database with zero collections, so creating one
+explicitly is what makes the database real.
 """
 
 import asyncio

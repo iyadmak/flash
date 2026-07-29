@@ -1,7 +1,6 @@
 """Tests for /api/v1/restaurants/ CRUD endpoints.
 
-Restaurants are public-read / owner-write. `auth_headers` authenticates as the
-`user` fixture and the `restaurant` fixture is owned by that same user, so
+Public-read / owner-write. `auth_headers` authenticates as the `user` fixture, so
 `make_restaurant()` with no arguments builds one owned by somebody else.
 """
 

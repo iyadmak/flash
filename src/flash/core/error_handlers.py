@@ -1,9 +1,7 @@
 """Centralized HTTP error handling.
 
-Split from `exceptions.py` so that the exception hierarchy itself stays free of
-any web-framework import. Domain objects raise AppErrors -- OrderModel raises
-IllegalStatusTransition -- and nothing in the domain should transitively import
-FastAPI to do it.
+Split from `exceptions.py` so the hierarchy stays free of any web-framework
+import: OrderModel raises AppErrors and must not pull in FastAPI to do it.
 """
 
 import structlog
@@ -44,10 +42,8 @@ def register_exception_handlers(app: FastAPI) -> None:
             path=request.url.path,
             errors=exc.errors(),
         )
-        # jsonable_encoder, not the raw list: pydantic puts the failed constraint in
-        # each error's `ctx`, and a constraint can be a value json.dumps refuses --
-        # `ge=Decimal("0")` on Money is exactly that. Without this, a negative price
-        # made the handler itself blow up and the request 500'd instead of 422'd.
+        # jsonable_encoder: pydantic puts the failed constraint in each error's `ctx`,
+        # and json.dumps refuses some of them -- Money's ge=Decimal("0") 500'd here.
         return JSONResponse(
             status_code=422,
             content=jsonable_encoder(

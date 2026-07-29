@@ -23,7 +23,7 @@ class RequestLoggingMiddleware:
         structlog.contextvars.bind_contextvars(request_id=request_id)
 
         status_code = 500
-        start = time.perf_counter()
+        started_at = time.perf_counter()
 
         async def send_wrapper(message: Message) -> None:
             nonlocal status_code
@@ -40,6 +40,6 @@ class RequestLoggingMiddleware:
                 method=scope["method"],
                 path=scope["path"],
                 status_code=status_code,
-                duration_ms=round((time.perf_counter() - start) * 1000, 2),
+                duration_ms=round((time.perf_counter() - started_at) * 1000, 2),
             )
             structlog.contextvars.clear_contextvars()

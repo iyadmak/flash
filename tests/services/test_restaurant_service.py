@@ -1,8 +1,7 @@
-"""Unit tests for RestaurantService — no DB, no HTTP, just the service
-against a fake repo.
+"""Unit tests for RestaurantService — no DB, no HTTP, just a fake repo.
 
-Restaurants are public-read / owner-write, the inverse of orders: `list` and
-`get` take no actor at all, and only the write methods enforce ownership.
+Public-read / owner-write, the inverse of orders: `list` and `get` take no actor,
+and only the write methods enforce ownership.
 """
 
 import pytest
@@ -40,8 +39,8 @@ class FakeRestaurantRepository:
         self._restaurants[restaurant.id] = restaurant
         return restaurant
 
-    async def get(self, id: int) -> RestaurantModel | None:
-        return self._restaurants.get(id)
+    async def get(self, entity_id: int) -> RestaurantModel | None:
+        return self._restaurants.get(entity_id)
 
     async def list(self, limit: int, offset: int) -> list[RestaurantModel]:
         return list(self._restaurants.values())[offset : offset + limit]

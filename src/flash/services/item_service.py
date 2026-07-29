@@ -9,7 +9,7 @@ from flash.schemas.item_schema import ItemCreate, ItemUpdate
 
 
 class ItemRepoProtocol(Protocol):
-    async def get(self, id: int) -> ItemModel | None: ...
+    async def get(self, entity_id: int) -> ItemModel | None: ...
     async def list_for_order_with_cursor(
         self, order_id: int, limit: int, cursor_id: int | None
     ) -> Sequence[ItemModel]: ...
@@ -21,11 +21,7 @@ class ItemRepoProtocol(Protocol):
 class OrderAccessProtocol(Protocol):
     """The parent order's ownership gate, satisfied by OrderService.get.
 
-    Items are part of the order aggregate, so they carry no authorization rule
-    of their own: an operation on an item is permitted exactly when the caller
-    may reach its order. Delegating here rather than restating the check keeps
-    the 404-instead-of-403 decision in one place -- and means items inherit any
-    future change to it for free.
+    Items inherit the order's authorization rule instead of restating it.
     """
 
     async def get(self, order_id: int, actor_id: int) -> OrderModel: ...
@@ -37,23 +33,15 @@ class ItemService:
         self._orders = orders
 
     async def _item_in_order(self, order_id: int, item_id: int) -> ItemModel:
-        """The item must belong to *this* order.
-
-        Without this, /orders/{mine}/items/{id} would reach any item in the
-        table, since owning the order named in the path would be enough.
-        """
+        """The item must belong to *this* order, or owning any order would reach it."""
         item = await self._repo.get(item_id)
         if item is None or item.order_id != order_id:
             raise ItemNotFound()
         return item
 
     async def _editable_order(self, order_id: int, actor_id: int) -> OrderModel:
-        """The write gate: the actor must reach the order *and* the order must
-        still accept changes to its contents.
-
-        Reads deliberately skip the second question -- a delivered order's items
-        stay readable forever, they just stop being editable.
-        """
+        """Write gate: a reachable order that still accepts changes. Reads skip the
+        editability check -- a placed order's items stay readable, just frozen."""
         order = await self._orders.get(order_id, actor_id)
         order.assert_editable()
         return order
@@ -93,8 +81,7 @@ class ItemService:
     ) -> ItemModel:
         await self._editable_order(order_id, actor_id)
         item = await self._item_in_order(order_id, item_id)
-        # `is not None` rather than `or`: price=0.0 is a real value and the `or`
-        # idiom would silently discard it.
+        # `is not None`, not `or`: price=0.0 is a real value.
         if data.name is not None:
             item.name = data.name
         if data.price is not None:

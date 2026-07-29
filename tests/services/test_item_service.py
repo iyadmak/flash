@@ -1,9 +1,7 @@
 """Unit tests for ItemService — no DB, no HTTP, just the service against fakes.
 
-Items carry no authorization rule of their own: every operation delegates to the
-parent order's gate. The fake below stands in for OrderService.get, raising
-OrderNotFound for an order that is missing *or* not the actor's, exactly as the
-real one does.
+Items carry no authorization rule of their own; every operation delegates to the
+parent order's gate, which FakeOrderAccess stands in for.
 """
 
 import pytest
@@ -30,11 +28,10 @@ MY_DELIVERED_ORDER_ID = 12
 
 
 class FakeOrderAccess:
-    """Stands in for OrderService.get -- the ownership gate items delegate to.
+    """Stands in for OrderService.get, the gate items delegate to.
 
-    Returns a real OrderModel rather than a stub, because ItemService calls
-    assert_editable() on it: the editability rule under test lives on the model,
-    so faking it away would test nothing.
+    Returns a real OrderModel: assert_editable() is the rule under test, so
+    stubbing it away would test nothing.
     """
 
     def __init__(
@@ -70,8 +67,8 @@ class FakeItemRepository:
         self._items[item.id] = item
         return item
 
-    async def get(self, id: int) -> ItemModel | None:
-        return self._items.get(id)
+    async def get(self, entity_id: int) -> ItemModel | None:
+        return self._items.get(entity_id)
 
     async def list_for_order_with_cursor(
         self, order_id: int, limit: int, cursor_id: int | None
@@ -264,10 +261,8 @@ class TestDelete:
 class TestOrderMustBeEditable:
     """Writes go through OrderModel.assert_editable, reads do not.
 
-    The actor owns MY_DELIVERED_ORDER_ID, so the ownership gate passes -- only
-    the order's position in its lifecycle stops the write. Because the guard sits
-    on the model rather than in each service method, a write path added later
-    inherits it instead of having to remember it.
+    The actor owns the delivered order, so only its lifecycle position stops the
+    write -- and the guard sits on the model, so new write paths inherit it.
     """
 
     async def test_cannot_add_an_item(self, service: ItemService) -> None:

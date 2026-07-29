@@ -1,9 +1,7 @@
 """Tests for the Money type.
 
-The first class states the property the whole change exists for; the rest cover
-what the validator refuses. Without these, "we switched to Decimal" is an
-assertion in a commit message rather than something the suite would notice
-regressing.
+The first class states the property the change exists for; the rest cover what
+the validator refuses.
 """
 
 from decimal import Decimal
@@ -25,13 +23,10 @@ class TestWhyDecimal:
         assert Decimal("0.1") + Decimal("0.2") == Decimal("0.3")
 
     def test_summing_a_realistic_basket_is_exact(self) -> None:
-        """A 0.10 side, a 0.20 drink and a 9.99 main is 10.29. Summed as floats it
-        is 10.290000000000001, so an order total compared against its own line
-        items would disagree with itself for no reason a user could be told.
+        """0.10 + 0.20 + 9.99 is 10.290000000000001 in floats.
 
-        Note the failure is not reliable, which is what makes it nasty: ten 0.10s
-        happen to sum to exactly 1.0 because the errors cancel. Whether a given
-        basket is wrong depends on the prices in it.
+        The unreliability is the hazard: ten 0.10s happen to sum to exactly 1.0
+        because the errors cancel, so no amount of spot-checking finds this.
         """
         basket = ["0.10", "0.20", "9.99"]
         assert sum((Decimal(p) for p in basket), zero()) == Decimal("10.29")

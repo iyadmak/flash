@@ -6,9 +6,8 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 from flash.core.config import get_settings
 
-# Deterministic constraint names, so our own code can reference them
-# confidently instead of relying on whatever Postgres assigns by default.
-# See https://docs.sqlalchemy.org/en/20/core/constraints.html#configuring-constraint-naming-conventions
+# Deterministic constraint names so repositories can branch on them by name.
+# https://docs.sqlalchemy.org/en/20/core/constraints.html#configuring-constraint-naming-conventions
 NAMING_CONVENTION = {
     "ix": "ix_%(column_0_label)s",
     "uq": "uq_%(table_name)s_%(column_0_name)s",

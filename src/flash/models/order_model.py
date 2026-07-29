@@ -19,22 +19,14 @@ class OrderModel(Base):
 
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
     restaurant_id: Mapped[int] = mapped_column(ForeignKey("restaurants.id"), index=True)
-    # NUMERIC, not DOUBLE PRECISION: asyncpg hands NUMERIC back as a Decimal with
-    # the column's scale preserved, so a value written as 42.50 reads back as
-    # Decimal("42.50") rather than 42.499999999999996.
+    # NUMERIC, not DOUBLE PRECISION: exact for money, and asyncpg returns a Decimal.
     total_price: Mapped[Decimal] = mapped_column(
         Numeric(MONEY_MAX_DIGITS, MONEY_DECIMAL_PLACES)
     )
-    # native_enum=False keeps this a VARCHAR with a CHECK constraint rather than a
-    # Postgres ENUM type, which cannot be altered without a migration dance every
-    # time a state is added. values_callable persists the lowercase *values*
-    # ("pending") instead of SQLAlchemy's default of member *names* ("PENDING"),
-    # which is what existing rows and the event payload already contain.
-    #
-    # Typing the column as OrderStatus rather than str matters more than it looks:
-    # Enum.__hash__ is derived from the member name, so a plain "pending" loaded
-    # from the database would compare equal to OrderStatus.PENDING while hashing
-    # differently -- and every ALLOWED_TRANSITIONS lookup would silently miss.
+    # native_enum=False: a VARCHAR + CHECK, so adding a state needs no ALTER TYPE.
+    # values_callable persists "pending" rather than SQLAlchemy's default "PENDING".
+    # Typed as OrderStatus, not str: Enum.__hash__ comes from the member name, so a
+    # plain "pending" compares equal to the member but misses every dict lookup.
     status: Mapped[OrderStatus] = mapped_column(
         Enum(
             OrderStatus,
@@ -53,22 +45,12 @@ class OrderModel(Base):
     )
 
     def change_status(self, new_status: OrderStatus) -> None:
-        """Advance the order. The only place `status` is ever assigned.
-
-        Rejects same-status "changes" too, since PENDING is not in its own
-        transition set -- a no-op PUT used to succeed silently and report a change
-        that never happened.
-        """
+        """The only place `status` is assigned. No-op moves are rejected too."""
         if new_status not in ALLOWED_TRANSITIONS[self.status]:
             raise IllegalStatusTransition(self.status, new_status)
         self.status = new_status
 
     def assert_editable(self) -> None:
-        """Guard for anything that changes what the order contains.
-
-        Called by the aggregate's write paths rather than by each caller, so a
-        method added later cannot forget it: there is no way to reach the items
-        of an order except through code that has already asked this question.
-        """
+        """Guard for anything that changes what the order contains."""
         if self.status not in EDITABLE_STATUSES:
             raise OrderNotMutable(self.status)

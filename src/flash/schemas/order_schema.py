@@ -14,13 +14,9 @@ class OrderCreate(BaseModel):
 
 
 class OrderStatusUpdate(BaseModel):
-    """The whole of what a client may change about a placed order.
+    """A status change is a named operation, not a field write.
 
-    Replaces OrderUpdate, which let a caller assign status and total_price as
-    bare fields -- so an order could be walked from `delivered` back to
-    `pending`. A status change is a named operation now, not a field write, and
-    `status: OrderStatus` rejects unknown values at the edge with a 422 before
-    any service code runs.
+    The enum rejects unknown values with a 422 before any service code runs.
     """
 
     status: OrderStatus
@@ -38,21 +34,11 @@ class OrderRead(BaseModel):
     updated_at: datetime
 
 
-# Event payload. `status` stays a plain `str` here, unlike OrderRead: the event is
-# a contract with other services, and they should not need a redeploy every time a
-# state is added to our internal lifecycle. Narrowing it to the enum would also
-# change the published JSON schema for no consumer's benefit.
+# `status` and `total_price` stay primitives, unlike OrderRead: narrowing them would
+# couple consumers to our enum and to Decimal's string serialization. Changing the
+# wire format needs its own version bump.
 #
-# `total_price` likewise stays `float` while the column and OrderRead are Decimal.
-# Pydantic serializes Decimal to a JSON *string*, so switching it here would change
-# the published payload from 42.5 to "42.50" and break both consumers -- a wire
-# format change dressed up as an internal storage fix. How money is represented on
-# the wire deserves one deliberate decision (a string, or integer cents, which is
-# what analytics already wants) and its own version bump.
-#
-# Deliberately a comment and not a docstring -- pydantic emits docstrings as the
-# schema's `description`, so an internal design note would ship as part of the
-# published contract. The snapshot test caught exactly that.
+# A comment, not a docstring: pydantic ships docstrings as the schema's `description`.
 class OrderCreatedData(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: int

@@ -24,8 +24,8 @@ async def login(
     auth_service: AuthServiceDep,
     form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
 ) -> TokenResponse:
-    acces_token = await auth_service.login(form_data.username, form_data.password)
-    return TokenResponse(access_token=acces_token)
+    access_token = await auth_service.login(form_data.username, form_data.password)
+    return TokenResponse(access_token=access_token)
 
 
 @router.post("/password-reset/request", status_code=status.HTTP_202_ACCEPTED)

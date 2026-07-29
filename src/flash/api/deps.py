@@ -120,11 +120,8 @@ RestaurantServiceDep = Annotated[RestaurantService, Depends(get_restaurant_servi
 OrderServiceDep = Annotated[OrderService, Depends(get_order_service)]
 
 
-# Declared after OrderServiceDep because it depends on it: items are part of the
-# order aggregate, so ItemService authorizes through OrderService rather than
-# reimplementing the ownership rule. The collaborators that pulls in are cheap --
-# the lock client and domain publisher are lru_cache'd singletons, and the stream
-# publisher is a thin wrapper over the already-running Kafka producer.
+# Declared after OrderServiceDep because it depends on it: ItemService authorizes
+# through the parent order rather than reimplementing the ownership rule.
 def get_item_service(repo: ItemRepoDep, order_service: OrderServiceDep) -> ItemService:
     return ItemService(repo, order_service)
 
@@ -155,7 +152,6 @@ CurrentUserDep = Annotated[UserRead, Depends(get_current_user)]
 
 
 async def require_self(user_id: int, current_user: CurrentUserDep) -> None:
-    """Authorization guard: the token subject must own the {user_id} in the path."""
-
+    """The token subject must match the {user_id} in the path."""
     if current_user.id != user_id:
         raise Forbidden()

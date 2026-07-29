@@ -24,8 +24,8 @@ class FakeUserRepository:
         self._users[user.id] = user
         return user
 
-    async def get(self, id: int) -> UserModel | None:
-        return self._users.get(id)
+    async def get(self, entity_id: int) -> UserModel | None:
+        return self._users.get(entity_id)
 
     async def get_by_email(self, email: str) -> UserModel | None:
         return next((u for u in self._users.values() if u.email == email), None)

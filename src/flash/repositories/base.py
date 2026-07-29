@@ -12,8 +12,8 @@ class BaseRepository[ModelT: Base]:
         self._session = session
         self._model = model
 
-    async def get(self, id: int) -> ModelT | None:
-        return await self._session.get(self._model, id)
+    async def get(self, entity_id: int) -> ModelT | None:
+        return await self._session.get(self._model, entity_id)
 
     async def list(self, limit: int, offset: int) -> Sequence[ModelT]:
         result = await self._session.execute(

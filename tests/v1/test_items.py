@@ -4,10 +4,8 @@
 belongs to that user, so `make_order()` with no arguments builds an order owned
 by somebody else.
 
-Money crosses the wire as a JSON string ("42.50"), not a number: pydantic
-serializes Decimal that way, because a JSON float cannot hold every 2-decimal
-amount exactly. Assertions parse it back to Decimal rather than comparing to a
-float literal, so they check the value and not the representation.
+Money crosses the wire as a JSON string ("42.50") because pydantic serializes
+Decimal that way, so assertions parse it back rather than compare to a float.
 """
 
 from decimal import Decimal
@@ -362,11 +360,9 @@ class TestDeleteItem:
 
 
 class TestConfirmedOrderFreezesItems:
-    """End to end over HTTP: once the order leaves PENDING its contents are fixed.
+    """End to end: once the order leaves PENDING its contents are fixed.
 
-    The guard lives on OrderModel.assert_editable, so all three write paths get it
-    from one place -- and reads keep working, because a placed order's contents
-    are a record rather than a secret.
+    One guard on the model covers all three write paths; reads keep working.
     """
 
     async def test_writes_are_refused_but_reads_continue(

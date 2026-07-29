@@ -22,7 +22,7 @@ class AnalyticsService:
 
     async def get_restaurant_metrics(self, restaurant_id: int) -> RestaurantMetrics:
         await self._restaurant_service.get(restaurant_id)
-        cursor = await self._daily_reports.aggregate(
+        totals_cursor = await self._daily_reports.aggregate(
             [
                 {"$match": {"restaurant_id": restaurant_id}},
                 {
@@ -34,7 +34,7 @@ class AnalyticsService:
                 },
             ]
         )
-        totals = await cursor.to_list()
+        totals = await totals_cursor.to_list()
         order_count = totals[0]["order_count"] if totals else 0
         revenue_cents = totals[0]["revenue_cents"] if totals else 0
 

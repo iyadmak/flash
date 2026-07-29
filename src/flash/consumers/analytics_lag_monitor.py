@@ -1,9 +1,8 @@
-"""Continuously-running, standalone lag monitor for the flash-analytics
-consumer group. Deliberately never joins that group -- it only reads
-committed offsets via the admin API (list_consumer_group_offsets) and the
-latest offset per partition via a groupless consumer, so it can observe lag
-even if analytics_consumer has silently died, without ever stealing its
-partitions."""
+"""Lag monitor for the flash-analytics consumer group.
+
+Never joins the group -- it reads committed offsets through the admin API -- so it
+still reports lag when the analytics consumer has died, without stealing work.
+"""
 
 import asyncio
 import structlog
@@ -15,7 +14,7 @@ from flash.core.config import get_settings
 
 logger = structlog.get_logger()
 
-CHECK_INTERVAL_SETTINGS = 15
+CHECK_INTERVAL_SECONDS = 15
 
 
 async def check_lag(admin: AIOKafkaAdminClient, consumer: AIOKafkaConsumer) -> None:
@@ -24,30 +23,33 @@ async def check_lag(admin: AIOKafkaAdminClient, consumer: AIOKafkaConsumer) -> N
         logger.warning("lag_check_no_partitions", topic=TOPIC)
         return
 
-    topic_partitions = [TopicPartition(TOPIC, p) for p in sorted(partitions)]
+    topic_partitions = [
+        TopicPartition(TOPIC, partition) for partition in sorted(partitions)
+    ]
     end_offsets = await consumer.end_offsets(topic_partitions)
     committed = await admin.list_consumer_group_offsets(
         CONSUMER_GROUP, partitions=topic_partitions
     )
 
     total_lag = 0
-    for tp in topic_partitions:
-        end_offset = end_offsets[tp]
-        commited_offset = committed.get(tp)
-        current = (
-            commited_offset.offset
-            if commited_offset and commited_offset.offset >= 0
+    for topic_partition in topic_partitions:
+        end_offset = end_offsets[topic_partition]
+        committed_metadata = committed.get(topic_partition)
+        # A group that has never committed reports -1; treat that as offset zero.
+        committed_offset = (
+            committed_metadata.offset
+            if committed_metadata and committed_metadata.offset >= 0
             else 0
         )
-        lag = end_offset - current
+        lag = end_offset - committed_offset
         total_lag += lag
         logger.info(
             "partition_lag",
             group=CONSUMER_GROUP,
             topic=TOPIC,
-            partition=tp.partition,
+            partition=topic_partition.partition,
             end_offset=end_offset,
-            commited_offset=current,
+            committed_offset=committed_offset,
             lag=lag,
         )
     logger.info("total_lag", group=CONSUMER_GROUP, topic=TOPIC, total_lag=total_lag)
@@ -56,11 +58,8 @@ async def check_lag(admin: AIOKafkaAdminClient, consumer: AIOKafkaConsumer) -> N
 async def main() -> None:
     settings = get_settings()
     admin = AIOKafkaAdminClient(bootstrap_servers=settings.kafka_bootstrap_servers)
-    # Passing TOPIC here (rather than a bare, topic-less consumer) is what
-    # actually populates partitions_for_topic()'s local cache -- verified
-    # empirically; fetch_all_metadata()/topics() update a disconnected
-    # metadata copy that partitions_for_topic() never reads from. Still no
-    # group_id: this consumer never joins flash-analytics.
+    # Passing TOPIC is what populates partitions_for_topic()'s cache; fetch_all_
+    # metadata() updates a copy it never reads. No group_id: it must not join.
     consumer = AIOKafkaConsumer(
         TOPIC, bootstrap_servers=settings.kafka_bootstrap_servers
     )
@@ -69,7 +68,7 @@ async def main() -> None:
     try:
         while True:
             await check_lag(admin, consumer)
-            await asyncio.sleep(CHECK_INTERVAL_SETTINGS)
+            await asyncio.sleep(CHECK_INTERVAL_SECONDS)
     finally:
         await consumer.stop()
         await admin.close()

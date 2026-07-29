@@ -4,10 +4,8 @@ Orders are private to the user who placed them. `auth_headers` authenticates
 as the `user` fixture, so `make_order()` with no arguments builds an order
 owned by somebody else -- that is the cross-user case throughout.
 
-Money crosses the wire as a JSON string ("42.50"), not a number: pydantic
-serializes Decimal that way, because a JSON float cannot hold every 2-decimal
-amount exactly. Assertions parse it back to Decimal rather than comparing to a
-float literal, so they check the value and not the representation.
+Money crosses the wire as a JSON string ("42.50") because pydantic serializes
+Decimal that way, so assertions parse it back rather than compare to a float.
 """
 
 from decimal import Decimal

@@ -1,9 +1,7 @@
 """Tests for the rules OrderModel owns.
 
-No service, no repository, no database -- these exercise the aggregate's own
-behaviour directly, which is the point of moving the rules onto the model. If
-these pass, every caller that goes through change_status/assert_editable
-inherits the guarantee.
+No service, repository or database: every caller that goes through
+change_status/assert_editable inherits whatever these prove.
 """
 
 import pytest

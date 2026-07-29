@@ -1,10 +1,7 @@
-"""
-Factory fixtures for v1 API tests.
+"""Factory fixtures for v1 API tests.
 
-Data is committed (not just flushed) so that HTTP requests, which run on
-separate sessions, can see the inserted rows.
-
-Dependency chain: user → restaurant → order → item
+Committed, not just flushed, so HTTP requests on separate sessions can see the
+rows. Dependency chain: user → restaurant → order → item.
 """
 
 import itertools
@@ -85,9 +82,8 @@ def make_order(
     ) -> OrderModel:
         user = user or await make_user()
         restaurant = restaurant or await make_restaurant()
-        # OrderStatus.PENDING rather than the bare string: Enum.__hash__ comes from
-        # the member *name*, so a plain "pending" would compare equal to the member
-        # while hashing differently and every ALLOWED_TRANSITIONS lookup would miss.
+        # The enum member, not "pending": Enum.__hash__ comes from the member name,
+        # so a bare string compares equal but misses every dict lookup.
         fields: dict[str, Any] = {
             "user_id": user.id,
             "restaurant_id": restaurant.id,

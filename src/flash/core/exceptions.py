@@ -1,9 +1,7 @@
 """The application's error vocabulary.
 
-Deliberately imports nothing: domain objects raise these directly (OrderModel
-raises IllegalStatusTransition), so this module must not drag a web framework
-into the domain. The FastAPI handlers that translate them live in
-`error_handlers.py`.
+Imports nothing: domain objects raise these directly, so it must not drag a web
+framework into the domain. The handlers live in `error_handlers.py`.
 """
 
 
@@ -99,9 +97,8 @@ class DeleteConflict(AppError):
 class IllegalStatusTransition(AppError):
     """Raised by OrderModel.change_status for a move the lifecycle disallows.
 
-    409 rather than 422: the request is well-formed and the target status is a
-    real status -- it is the order's current state that makes it impossible, and
-    that is a conflict, not a validation failure.
+    409, not 422: the request is well-formed; the order's current state is what
+    makes it impossible, which is a conflict rather than a validation failure.
     """
 
     status_code = 409
@@ -124,13 +121,11 @@ class OrderNotMutable(AppError):
 
 
 class ForeignKeyViolation(Exception):
-    """Raised by BaseRepository.create() when an insert references a row
-    that doesn't exist. Deliberately not an AppError: the repository layer
-    has no notion of "restaurants" or "users", only which constraint
-    Postgres rejected -- the service layer catches this and translates the
-    constraint name into the right domain-specific AppError. If a service
-    ever forgets to catch it, it falls through to the generic 500 handler,
-    which is the correct outcome for a missed translation.
+    """An insert referenced a row that does not exist.
+
+    Deliberately not an AppError: the repository knows only which constraint
+    Postgres rejected, so a repository translates the name into a domain error. A
+    missed translation falls through to a 500, which is the right outcome.
     """
 
     def __init__(self, constraint_name: str | None) -> None:
@@ -139,11 +134,9 @@ class ForeignKeyViolation(Exception):
 
 
 class UniqueConstraintViolation(Exception):
-    """Raised by BaseRepository.create() when an insert collides with a
-    unique constraint or index (e.g. a duplicate email). Same reasoning as
-    ForeignKeyViolation: the repository layer only knows which constraint
-    Postgres rejected, not what that means for a given model -- the service
-    layer translates it into the right domain-specific AppError.
+    """An insert collided with a unique constraint, e.g. a duplicate email.
+
+    Same reasoning as ForeignKeyViolation: translated by a repository.
     """
 
     def __init__(self, constraint_name: str | None) -> None:

@@ -10,7 +10,7 @@ from flash.models.restaurant_model import RestaurantModel
 
 
 class RestaurantRepoProtocol(Protocol):
-    async def get(self, id: int) -> RestaurantModel | None: ...
+    async def get(self, entity_id: int) -> RestaurantModel | None: ...
     async def list(self, limit: int, offset: int) -> Sequence[RestaurantModel]: ...
     async def create(self, instance: RestaurantModel) -> RestaurantModel: ...
     async def delete(self, instance: RestaurantModel) -> None: ...
@@ -43,12 +43,10 @@ class RestaurantService:
         return restaurant
 
     async def _get_owned(self, restaurant_id: int, actor_id: int) -> RestaurantModel:
-        """Resolve a restaurant the actor is allowed to write to.
+        """Resolve a restaurant the actor may write to.
 
-        Existence is checked first, so a missing restaurant is a 404 and
-        somebody else's is a 403. Unlike an order, a restaurant's existence is
-        not private -- every authenticated user may read it -- so masking it
-        behind a 404 would buy nothing, and 403 is the honest answer.
+        Existence first, so a missing one is a 404 and somebody else's is a 403 --
+        anyone may read a restaurant, so hiding its existence would buy nothing.
         """
         restaurant = await self.get(restaurant_id)
         if restaurant.owner_id != actor_id:
@@ -59,9 +57,7 @@ class RestaurantService:
         self, restaurant_id: int, data: RestaurantUpdate, actor_id: int
     ) -> RestaurantModel:
         restaurant = await self._get_owned(restaurant_id, actor_id)
-        # `is not None` rather than `or`: an empty string is a real value here,
-        # and `data.phone or restaurant.phone` would silently refuse to clear a
-        # field the caller explicitly blanked.
+        # `is not None`, not `or`: an empty string is a real value.
         if data.name is not None:
             restaurant.name = data.name
         if data.address is not None:

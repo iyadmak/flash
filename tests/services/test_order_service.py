@@ -47,8 +47,8 @@ class FakeOrderRepository:
         self._orders[order.id] = order
         return order
 
-    async def get(self, id: int) -> OrderModel | None:
-        return self._orders.get(id)
+    async def get(self, entity_id: int) -> OrderModel | None:
+        return self._orders.get(entity_id)
 
     async def list_for_user(
         self, user_id: int, limit: int, offset: int
