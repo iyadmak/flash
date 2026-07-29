@@ -118,11 +118,14 @@ class TestUpdate:
         updated = await service.update(user.id, UserUpdate(username="new"))
         assert updated.username == "new"
 
-    async def test_is_active_flag_is_silently_ignored(
+    async def test_applies_the_is_active_flag(
         self, service: UserService, repo: FakeUserRepository
     ) -> None:
-        """Documents a real bug: UserUpdate.is_active exists on the schema
-        but UserService.update never applies it."""
+        """Deactivation is the lockout mechanism -- AuthService refuses a
+        token whose subject is inactive -- so this flag has to actually reach
+        the model. Seeded rather than created because UserCreate cannot
+        express is_active. See TestGet.test_returns_inactive_user for the
+        other half: reads deliberately do not filter on it."""
         seeded = repo.seed(
             UserModel(
                 username="iyad",
