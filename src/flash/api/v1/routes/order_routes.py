@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, status, Query
 from flash.api.deps import OrderServiceDep, CurrentUserDep, get_current_user
+from flash.models.order_model import OrderModel
 from flash.schemas.order_schema import OrderCreate, OrderStatusUpdate, OrderRead
 
 router = APIRouter(
@@ -7,15 +8,16 @@ router = APIRouter(
 )
 
 
-@router.get("/")
+# response_model rather than a return annotation: the handler returns ORM rows and
+# FastAPI validates them once, instead of us building OrderRead and it revalidating.
+@router.get("/", response_model=list[OrderRead])
 async def list_orders(
     order_service: OrderServiceDep,
     current_user: CurrentUserDep,
     limit: int = Query(50, le=100),
     offset: int = Query(0, ge=0),
-) -> list[OrderRead]:
-    orders = await order_service.list(limit, offset, current_user.id)
-    return [OrderRead.model_validate(order) for order in orders]
+) -> list[OrderModel]:
+    return await order_service.list(limit, offset, current_user.id)
 
 
 @router.get("/{order_id}")

@@ -7,7 +7,7 @@ from typing import Any, cast
 
 import pytest
 import pytest_asyncio
-from collections.abc import AsyncIterator, Iterator
+from collections.abc import AsyncIterator, Iterator, Sequence
 from alembic import command
 from alembic.config import Config
 from testcontainers.postgres import PostgresContainer
@@ -96,6 +96,9 @@ class FakeCache:
 
     async def get(self, name: str, /) -> str | None:
         return self._data.get(name)
+
+    async def mget(self, keys: Sequence[str], /) -> list[str | None]:
+        return [self._data.get(key) for key in keys]
 
     async def set(self, name: str, value: str, ex: int | None = None) -> None:
         self._data[name] = value

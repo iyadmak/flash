@@ -71,10 +71,12 @@ class AuthService:
             payload = decode_access_token(token)
         except jwt.PyJWTError:
             raise InvalidToken() from None
-        valid_after = await self._cache.get(f"token_valid_after:{payload.sub}")
+        # One MGET rather than two GETs: this runs on every authenticated request.
+        valid_after, cached_user = await self._cache.mget(
+            [f"token_valid_after:{payload.sub}", f"user:{payload.sub}"]
+        )
         if valid_after is not None and payload.iat.timestamp() <= float(valid_after):
             raise InvalidToken()
-        cached_user = await self._cache.get(f"user:{payload.sub}")
         if cached_user is not None:
             user = UserRead.model_validate_json(cached_user)
             if not user.is_active:

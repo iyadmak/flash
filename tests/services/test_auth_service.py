@@ -1,6 +1,6 @@
 """Unit tests for AuthService — no DB, no HTTP, just the service against fakes."""
 
-from collections.abc import Iterator
+from collections.abc import Iterator, Sequence
 from datetime import datetime, timedelta, timezone
 from unittest.mock import MagicMock, patch
 
@@ -61,6 +61,9 @@ class FakeCache:
 
     async def get(self, name: str, /) -> str | None:
         return self._data.get(name)
+
+    async def mget(self, keys: Sequence[str], /) -> list[str | None]:
+        return [self._data.get(key) for key in keys]
 
     async def set(self, name: str, value: str, ex: int | None = None) -> None:
         self._data[name] = value

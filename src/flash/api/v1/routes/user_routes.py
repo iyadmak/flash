@@ -8,7 +8,7 @@ router = APIRouter(prefix="/users", tags=["users"])
 
 @router.get("/me")
 async def get_me(current_user: CurrentUserDep) -> UserRead:
-    return UserRead.model_validate(current_user)
+    return current_user
 
 
 @router.get("/{user_id}", dependencies=[Depends(require_self)])

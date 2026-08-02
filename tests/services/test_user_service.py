@@ -1,5 +1,7 @@
 """Unit tests for UserService — no DB, no HTTP, just the service against a fake repo."""
 
+from collections.abc import Sequence
+
 import pytest
 
 from flash.core.exceptions import UserNotFound
@@ -47,6 +49,9 @@ class FakeCache:
 
     async def get(self, name: str, /) -> str | None:
         return self._data.get(name)
+
+    async def mget(self, keys: Sequence[str], /) -> list[str | None]:
+        return [self._data.get(key) for key in keys]
 
     async def set(self, name: str, value: str, ex: int | None = None) -> None:
         self._data[name] = value

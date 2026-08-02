@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, status, Query
 
 from flash.api.deps import RestaurantServiceDep, CurrentUserDep, get_current_user
+from flash.models.restaurant_model import RestaurantModel
 from flash.schemas.restaurant_schema import (
     RestaurantRead,
     RestaurantCreate,
@@ -14,14 +15,13 @@ router = APIRouter(
 )
 
 
-@router.get("/")
+@router.get("/", response_model=list[RestaurantRead])
 async def list_restaurants(
     restaurant_service: RestaurantServiceDep,
     limit: int = Query(50, le=100),
     offset: int = Query(0, ge=0),
-) -> list[RestaurantRead]:
-    restaurants = await restaurant_service.list(limit, offset)
-    return [RestaurantRead.model_validate(restaurant) for restaurant in restaurants]
+) -> list[RestaurantModel]:
+    return await restaurant_service.list(limit, offset)
 
 
 @router.get("/{restaurant_id}")
