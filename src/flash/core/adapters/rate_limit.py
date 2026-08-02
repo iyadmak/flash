@@ -10,9 +10,13 @@ from flash.core.exceptions import RateLimitExceeded
 
 
 @lru_cache
-def get_rate_limit_storage() -> Storage:
-    """Storage dependency: real Redis in the app. Overridden to in-memory in tests."""
+def _redis_rate_limit_storage() -> Storage:
     return RedisStorage(get_settings().redis_url, implementation="redispy")
+
+
+async def get_rate_limit_storage() -> Storage:
+    """Storage dependency: real Redis in the app. Overridden to in-memory in tests."""
+    return _redis_rate_limit_storage()
 
 
 def rate_limit(

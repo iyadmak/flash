@@ -7,7 +7,6 @@ from fastapi.security import OAuth2PasswordBearer
 from pymongo.asynchronous.collection import AsyncCollection
 
 from flash.core.db import get_async_session
-from flash.core.config import Settings, get_settings
 from flash.core.adapters import (
     CacheProtocol,
     LockProtocol,
@@ -39,11 +38,14 @@ from flash.core.exceptions import Forbidden
 
 
 # ------------------- General dependencies -------------------
-def get_event_stream_publisher(request: Request) -> KafkaEventStreamPublisherProtocol:
+# Every provider is async: FastAPI runs a sync dependency in a worker thread,
+# which costs ~73us each, and none of these block.
+async def get_event_stream_publisher(
+    request: Request,
+) -> KafkaEventStreamPublisherProtocol:
     return KafkaEventStreamPublisher(request.app.state.kafka_producer)
 
 
-SettingsDep = Annotated[Settings, Depends(get_settings)]
 DBSessionDep = Annotated[AsyncSession, Depends(get_async_session)]
 CacheDep = Annotated[CacheProtocol, Depends(get_user_cache)]
 LockClientDep = Annotated[LockProtocol, Depends(get_lock_client)]
@@ -57,25 +59,25 @@ DailyReportsCollectionDep = Annotated[
 
 
 # ------------------- Repository dependencies -------------------
-def get_password_reset_token_repository(
+async def get_password_reset_token_repository(
     session: DBSessionDep,
 ) -> PasswordResetTokenRepository:
     return PasswordResetTokenRepository(session)
 
 
-def get_item_repository(session: DBSessionDep) -> ItemRepository:
+async def get_item_repository(session: DBSessionDep) -> ItemRepository:
     return ItemRepository(session)
 
 
-def get_order_repository(session: DBSessionDep) -> OrderRepository:
+async def get_order_repository(session: DBSessionDep) -> OrderRepository:
     return OrderRepository(session)
 
 
-def get_restaurant_repository(session: DBSessionDep) -> RestaurantRepository:
+async def get_restaurant_repository(session: DBSessionDep) -> RestaurantRepository:
     return RestaurantRepository(session)
 
 
-def get_user_repository(session: DBSessionDep) -> UserRepository:
+async def get_user_repository(session: DBSessionDep) -> UserRepository:
     return UserRepository(session)
 
 
@@ -89,7 +91,7 @@ PasswordResetTokenRepoDep = Annotated[
 
 
 # ------------------- Service dependencies -------------------
-def get_auth_service(
+async def get_auth_service(
     user_repo: UserRepoDep,
     reset_token_repo: PasswordResetTokenRepoDep,
     cache: CacheDep,
@@ -97,15 +99,15 @@ def get_auth_service(
     return AuthService(user_repo, reset_token_repo, cache)
 
 
-def get_user_service(repo: UserRepoDep, cache: CacheDep) -> UserService:
+async def get_user_service(repo: UserRepoDep, cache: CacheDep) -> UserService:
     return UserService(repo, cache)
 
 
-def get_restaurant_service(repo: RestaurantRepoDep) -> RestaurantService:
+async def get_restaurant_service(repo: RestaurantRepoDep) -> RestaurantService:
     return RestaurantService(repo)
 
 
-def get_order_service(
+async def get_order_service(
     repo: OrderRepoDep,
     lock_client: LockClientDep,
     event_publisher: EventPublisherDep,
@@ -122,14 +124,16 @@ OrderServiceDep = Annotated[OrderService, Depends(get_order_service)]
 
 # Declared after OrderServiceDep because it depends on it: ItemService authorizes
 # through the parent order rather than reimplementing the ownership rule.
-def get_item_service(repo: ItemRepoDep, order_service: OrderServiceDep) -> ItemService:
+async def get_item_service(
+    repo: ItemRepoDep, order_service: OrderServiceDep
+) -> ItemService:
     return ItemService(repo, order_service)
 
 
 ItemServiceDep = Annotated[ItemService, Depends(get_item_service)]
 
 
-def get_analytics_service(
+async def get_analytics_service(
     daily_reports: DailyReportsCollectionDep, restaurant_service: RestaurantServiceDep
 ) -> AnalyticsService:
     return AnalyticsService(daily_reports, restaurant_service)

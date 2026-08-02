@@ -33,6 +33,10 @@ class KombuEventPublisher:
 
 
 @lru_cache
-def get_event_publisher() -> EventPublisherProtocol:
-    """Domain-event publisher: real rabbitmq in the app. Overriden to a fake in tests."""
+def _kombu_publisher() -> EventPublisherProtocol:
     return KombuEventPublisher(connection=Connection(get_settings().rabbitmq_url))
+
+
+async def get_event_publisher() -> EventPublisherProtocol:
+    """Domain-event publisher: real rabbitmq in the app. Overriden to a fake in tests."""
+    return _kombu_publisher()

@@ -12,6 +12,10 @@ class CacheProtocol(Protocol):
 
 
 @lru_cache
-def get_user_cache() -> CacheProtocol:
-    """Cache dependency: real Redis in the app. Overridden to a fake in tests."""
+def _redis_cache() -> CacheProtocol:
     return redis.Redis.from_url(get_settings().redis_url)
+
+
+async def get_user_cache() -> CacheProtocol:
+    """Cache dependency: real Redis in the app. Overridden to a fake in tests."""
+    return _redis_cache()

@@ -17,5 +17,5 @@ def get_analytics_db() -> AsyncDatabase[dict[str, Any]]:
     return get_mongo_client().get_database(ANALYTICS_DB_NAME)
 
 
-def get_daily_reports_collection() -> AsyncCollection[dict[str, Any]]:
+async def get_daily_reports_collection() -> AsyncCollection[dict[str, Any]]:
     return get_analytics_db().get_collection("restaurant_daily_reports")

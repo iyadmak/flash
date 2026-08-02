@@ -12,6 +12,10 @@ class LockProtocol(Protocol):
 
 
 @lru_cache
-def get_lock_client() -> LockProtocol:
-    """Distributed lock backend: real Redis in the app. Overridden to a fake in tests."""
+def _redis_lock_client() -> LockProtocol:
     return redis.Redis.from_url(get_settings().redis_url)
+
+
+async def get_lock_client() -> LockProtocol:
+    """Distributed lock backend: real Redis in the app. Overridden to a fake in tests."""
+    return _redis_lock_client()
